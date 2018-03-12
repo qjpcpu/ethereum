@@ -16,7 +16,7 @@ func getClient(ipcpath string) *ethclient.Client {
 	var ethConn *ethclient.Client
 	var err error
 	if ipcpath == "" {
-		ipcpath = "/root/.ethereum/geth.ipc"
+		ipcpath = "/home/centos/.ethereum/testnet/geth.ipc"
 	}
 	if ethConn, err = ethclient.Dial(ipcpath); err != nil {
 		log.Panicln(err)
