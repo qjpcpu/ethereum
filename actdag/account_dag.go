@@ -26,8 +26,8 @@ func getClient(ipcpath string) *ethclient.Client {
 
 func main() {
 	client := getClient("")
-	for {
-		block, err := client.BlockByNumber(context.Background(), new(big.Int).SetInt64(100))
+	for bi := 0; bi < 10000; bi++ {
+		block, err := client.BlockByNumber(context.Background(), new(big.Int).SetInt64(int64(bi)))
 		if err != nil {
 			log.Panicln(err)
 		}
