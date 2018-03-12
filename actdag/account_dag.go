@@ -1,4 +1,4 @@
-package actdag
+package main
 
 import (
 	"context"
