@@ -27,5 +27,12 @@ func getClient(ipcpath string) *ethclient.Client {
 func main() {
 	client := getClient("")
 	block, err := client.BlockByNumber(context.Background(), new(big.Int).SetInt64(100))
-	log.Panicln(err, block)
+	if err != nil {
+		log.Panicln(err)
+	}
+	txs := block.Transactions()
+	log.Println("得到block:", block, "包含交易=", len(txs))
+	for i, tx := range txs {
+		log.Printf("%d. From=%v To=%v Val=%v [%v]\n", i, tx.To(), tx.To(), tx.Value(), tx.String())
+	}
 }
