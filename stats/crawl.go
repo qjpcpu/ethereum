@@ -53,17 +53,17 @@ func GetScanner(rawurl string, lis TxListener) (*TransactionScanner, error) {
 	if conn, err := ethclient.Dial(rawurl); err != nil {
 		return nil, err
 	} else {
-		return GetScannerByClient(conn, lis)
+		return GetScannerByClient(conn, lis), nil
 	}
 }
 
-func GetScannerByClient(conn *ethclient.Client, lis TxListener) (*TransactionScanner, error) {
+func GetScannerByClient(conn *ethclient.Client, lis TxListener) *TransactionScanner {
 	return &TransactionScanner{
 		mycontracts: make(map[string]ContractInfo),
 		mutex:       &sync.Mutex{},
 		conn:        conn,
 		listener:    lis,
-	}, nil
+	}
 }
 
 func (ts *TransactionScanner) Reset() {
