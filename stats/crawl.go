@@ -100,6 +100,14 @@ func (ts *TransactionScanner) Subscribe(contractAddrs ...string) error {
 	return nil
 }
 
+func (ts *TransactionScanner) GetSubscribes() []ContractInfo {
+	var list []ContractInfo
+	for _, c := range ts.mycontracts {
+		list = append(list, c)
+	}
+	return list
+}
+
 func (ts *TransactionScanner) SubscribeContracts(contractInfos ...ContractInfo) error {
 	if ts.scanning {
 		return errors.New("is running")
