@@ -9,6 +9,7 @@ import (
 	"github.com/qjpcpu/ethereum/contracts/erc20"
 	"github.com/qjpcpu/log"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 )
@@ -91,11 +92,12 @@ func (ts *TransactionScanner) Subscribe(contractAddrs ...string) error {
 			return err
 		}
 		info := ContractInfo{}
+		info.Address = strings.ToLower(addr.Hex())
 		info.Name, _ = token.Name(nil)
 		info.Symbol, _ = token.Symbol(nil)
 		totalSupply, _ := token.TotalSupply(nil)
 		info.TotalSupply = totalSupply.String()
-		ts.mycontracts[addr.Hex()] = info
+		ts.mycontracts[info.Address] = info
 		log.Infof("subscribe %s %s|%s OK", contractAddr, info.Name, info.Symbol)
 	}
 	return nil
@@ -177,8 +179,8 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 					records = append(records, TransferRecord{
 						Contract:           info,
 						IsContractCreation: true,
-						TxHash:             tx.Hash().Hex(),
-						From:               txe.From().Hex(),
+						TxHash:             strings.ToLower(tx.Hash().Hex()),
+						From:               strings.ToLower(txe.From().Hex()),
 						To:                 "",
 						Amount:             new(big.Int).SetInt64(0),
 					})
@@ -197,9 +199,9 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 					records = append(records, TransferRecord{
 						Contract:           info,
 						IsContractCreation: false,
-						TxHash:             tx.Hash().Hex(),
-						From:               from.Hex(),
-						To:                 to.Hex(),
+						TxHash:             strings.ToLower(tx.Hash().Hex()),
+						From:               strings.ToLower(from.Hex()),
+						To:                 strings.ToLower(to.Hex()),
 						Amount:             amount,
 					})
 				}
