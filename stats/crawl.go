@@ -140,6 +140,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 			case <-finish:
 				close(finish)
 				close(channel)
+				log.Info("scanner exit.")
 				return
 			}
 		}
@@ -148,7 +149,6 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 		ts.scanning = false
 		ts.mutex.Unlock()
 		finish <- struct{}{}
-		log.Info("scanner exit.")
 	}()
 	end_block := new(big.Int).SetUint64(limit)
 	if limit > 0 {
