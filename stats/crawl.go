@@ -100,6 +100,19 @@ func (ts *TransactionScanner) Subscribe(contractAddrs ...string) error {
 	return nil
 }
 
+func (ts *TransactionScanner) SubscribeContracts(contractInfos ...ContractInfo) error {
+	if ts.scanning {
+		return errors.New("is running")
+	}
+	ts.mutex.Lock()
+	defer ts.mutex.Unlock()
+	for _, info := range contractInfos {
+		ts.mycontracts[info.Address] = info
+		log.Infof("subscribe %s %s|%s OK", info.Address, info.Name, info.Symbol)
+	}
+	return nil
+}
+
 func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) error {
 	if ts.scanning {
 		return errors.New("is running")
