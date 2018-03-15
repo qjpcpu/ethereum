@@ -9,6 +9,7 @@ import (
 	"github.com/qjpcpu/ethereum/contracts/erc20"
 	"github.com/qjpcpu/log"
 	"math/big"
+	"sync"
 	"time"
 )
 
@@ -23,6 +24,8 @@ type TransactionScanner struct {
 	mycontracts map[string]ContractInfo
 	conn        *ethclient.Client
 	listener    TxListener
+	mutex       *sync.Mutex
+	scanning    bool
 }
 
 type TransferPacket struct {
@@ -47,18 +50,34 @@ type TxListener interface {
 type StatPrinter struct{}
 
 func GetScanner(rawurl string, lis TxListener) (*TransactionScanner, error) {
-	scanner := &TransactionScanner{mycontracts: make(map[string]ContractInfo)}
-	var err error
-	for loop := true; loop; loop = false {
-		if scanner.conn, err = ethclient.Dial(rawurl); err != nil {
-			break
-		}
-		scanner.listener = lis
+	if conn, err := ethclient.Dial(rawurl); err != nil {
+		return nil, err
+	} else {
+		return GetScannerByClient(conn, lis)
 	}
-	return scanner, err
+}
+
+func GetScannerByClient(conn *ethclient.Client, lis TxListener) (*TransactionScanner, error) {
+	return &TransactionScanner{
+		mycontracts: make(map[string]ContractInfo),
+		mutex:       &sync.Mutex{},
+		conn:        conn,
+		listener:    lis,
+	}, nil
+}
+
+func (ts *TransactionScanner) Reset() {
+	ts.mutex.Lock()
+	ts.mycontracts = make(map[string]ContractInfo)
+	ts.mutex.Unlock()
 }
 
 func (ts *TransactionScanner) Subscribe(contractAddrs ...string) error {
+	if ts.scanning {
+		return errors.New("is running")
+	}
+	ts.mutex.Lock()
+	defer ts.mutex.Unlock()
 	for _, contractAddr := range contractAddrs {
 		addr := common.HexToAddress(contractAddr)
 		if !contracts.IsContract(ts.conn, contractAddr) {
@@ -82,6 +101,14 @@ func (ts *TransactionScanner) Subscribe(contractAddrs ...string) error {
 }
 
 func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) error {
+	if ts.scanning {
+		return errors.New("is running")
+	}
+	if len(ts.mycontracts) == 0 {
+		return errors.New("no contracts to scan")
+	}
+	ts.mutex.Lock()
+	ts.scanning = true
 	channel := make(chan TransferPacket)
 	finish := make(chan struct{})
 	go func() {
@@ -97,6 +124,8 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 		}
 	}()
 	defer func() {
+		ts.scanning = false
+		ts.mutex.Unlock()
 		finish <- struct{}{}
 	}()
 	end_block := new(big.Int).SetUint64(limit)
