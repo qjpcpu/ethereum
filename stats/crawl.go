@@ -16,7 +16,7 @@ import (
 type ContractInfo struct {
 	Name        string
 	Symbol      string
-	TotalSupply uint64
+	TotalSupply string
 	Address     string
 }
 
@@ -94,7 +94,7 @@ func (ts *TransactionScanner) Subscribe(contractAddrs ...string) error {
 		info.Name, _ = token.Name(nil)
 		info.Symbol, _ = token.Symbol(nil)
 		totalSupply, _ := token.TotalSupply(nil)
-		info.TotalSupply = totalSupply.Uint64()
+		info.TotalSupply = totalSupply.String()
 		ts.mycontracts[addr.Hex()] = info
 		log.Infof("subscribe %s %s|%s OK", contractAddr, info.Name, info.Symbol)
 	}
