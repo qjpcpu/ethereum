@@ -45,6 +45,7 @@ type TransferRecord struct {
 
 type TxListener interface {
 	RecieveRecords(TransferPacket)
+	ScanDone(start_block *big.Int, end_block *big.Int)
 }
 
 type StatPrinter struct{}
@@ -132,6 +133,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 	ts.scanning = true
 	channel := make(chan TransferPacket)
 	finish := make(chan struct{})
+	fblock, tblock := new(big.Int).Set(start_block), new(big.Int)
 	go func() {
 		for {
 			select {
@@ -140,7 +142,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 			case <-finish:
 				close(finish)
 				close(channel)
-				log.Info("scanner exit.")
+				ts.listener.ScanDone(fblock, tblock)
 				return
 			}
 		}
@@ -210,6 +212,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 			Records:     records,
 		}
 		channel <- packet
+		tblock.Set(start_block)
 	}
 	return nil
 }
@@ -219,4 +222,7 @@ func (s StatPrinter) RecieveRecords(p TransferPacket) {
 	for _, record := range p.Records {
 		log.Infof("%s: %s ==> %s %v", record.TxHash, record.From, record.To, record.Amount.String())
 	}
+}
+
+func (s StatPrinter) ScanDone(start, end *big.Int) {
 }
