@@ -313,7 +313,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 				break LOOP
 			}
 		}
-		log.Info("------------")
+		close(datas)
 		packet := TransferPacket{
 			BlockNumber: new(big.Int).Set(start_block),
 			Timestamp:   block_time,

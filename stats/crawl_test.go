@@ -13,5 +13,5 @@ func TestScan(t *testing.T) {
 		t.Fatal(err)
 	}
 	scanner.SubscribeAll()
-	scanner.StartScan(big.NewInt(5243713), 1)
+	scanner.StartScan(big.NewInt(5266627), 1)
 }
