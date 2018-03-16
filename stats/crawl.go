@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/qjpcpu/ethereum/contracts"
 	"github.com/qjpcpu/ethereum/contracts/erc20"
@@ -183,6 +184,73 @@ func (ts *TransactionScanner) getContractInfo(addr string) (ContractInfo, error)
 	return info, nil
 }
 
+func (ts *TransactionScanner) handleTx(tx *types.Transaction) (record TransferRecord, skip bool, err error) {
+	txe := &contracts.TransactionWithExtra{Transaction: tx}
+	//是否合约创建交易
+	if txe.IsContractCreation() {
+		caddr := txe.ContractAddress()
+		if ts.isBadContract(caddr.Hex()) {
+			skip = true
+			return
+		}
+		if ts.isSubscribeAll() {
+			if info, err := ts.getContractInfo(caddr.Hex()); err == nil {
+				record = TransferRecord{
+					Contract:           info,
+					IsContractCreation: true,
+					TxHash:             strings.ToLower(tx.Hash().Hex()),
+					From:               strings.ToLower(txe.From().Hex()),
+					To:                 "",
+					Amount:             new(big.Int).SetInt64(0),
+				}
+			}
+		} else {
+			if info, ok := ts.mycontracts[strings.ToLower(caddr.Hex())]; ok {
+				record = TransferRecord{
+					Contract:           info,
+					IsContractCreation: true,
+					TxHash:             strings.ToLower(tx.Hash().Hex()),
+					From:               strings.ToLower(txe.From().Hex()),
+					To:                 "",
+					Amount:             new(big.Int).SetInt64(0),
+				}
+			}
+		}
+	} else {
+		toAddr := txe.To()
+		if ts.isBadContract(toAddr.Hex()) {
+			skip = true
+			return
+		}
+		info, ok := ts.mycontracts[strings.ToLower(toAddr.Hex())]
+		if !ok && ts.isSubscribeAll() {
+			if ci, err := ts.getContractInfo(toAddr.Hex()); err == nil {
+				ok = true
+				info = ci
+			}
+		}
+		if ok && erc20.IsTransferFunc(tx.Data()) {
+			to, amount, err1 := erc20.DecodeTransferData(tx.Data())
+			if err1 != nil {
+				log.Errorf("decode transaction %v fail:%v", tx, err)
+				err = err1
+				return
+			}
+			from := txe.From()
+			log.Debugf("Transaction:%s From:%s To:%s Amount:%s(%s)", tx.Hash().Hex(), from.Hex(), to.Hex(), amount, info.Symbol)
+			record = TransferRecord{
+				Contract:           info,
+				IsContractCreation: false,
+				TxHash:             strings.ToLower(tx.Hash().Hex()),
+				From:               strings.ToLower(from.Hex()),
+				To:                 strings.ToLower(to.Hex()),
+				Amount:             amount,
+			}
+		}
+	}
+	return
+}
+
 func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) error {
 	if ts.scanning {
 		return errors.New("is running")
@@ -226,69 +294,29 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 		txs := block.Transactions()
 		log.Debugf("got %d transactions in block %s", len(txs), start_block.String())
 		var records []TransferRecord
-		for _, tx := range txs {
-			txe := &contracts.TransactionWithExtra{Transaction: tx}
-			//是否合约创建交易
-			if txe.IsContractCreation() {
-				caddr := txe.ContractAddress()
-				if ts.isBadContract(caddr.Hex()) {
-					continue
+		var wg sync.WaitGroup
+		datas := make(chan TransferRecord, len(txs))
+		for i := range txs {
+			wg.Add(1)
+			go func(tx *types.Transaction) {
+				defer wg.Done()
+				record, skip, err := ts.handleTx(tx)
+				if err == nil && !skip {
+					datas <- record
 				}
-				if ts.isSubscribeAll() {
-					if info, err := ts.getContractInfo(caddr.Hex()); err == nil {
-						records = append(records, TransferRecord{
-							Contract:           info,
-							IsContractCreation: true,
-							TxHash:             strings.ToLower(tx.Hash().Hex()),
-							From:               strings.ToLower(txe.From().Hex()),
-							To:                 "",
-							Amount:             new(big.Int).SetInt64(0),
-						})
-					}
-				} else {
-					if info, ok := ts.mycontracts[strings.ToLower(caddr.Hex())]; ok {
-						records = append(records, TransferRecord{
-							Contract:           info,
-							IsContractCreation: true,
-							TxHash:             strings.ToLower(tx.Hash().Hex()),
-							From:               strings.ToLower(txe.From().Hex()),
-							To:                 "",
-							Amount:             new(big.Int).SetInt64(0),
-						})
-					}
-				}
-			} else {
-				toAddr := txe.To()
-				if ts.isBadContract(toAddr.Hex()) {
-					continue
-				}
-				info, ok := ts.mycontracts[strings.ToLower(toAddr.Hex())]
-				if !ok && ts.isSubscribeAll() {
-					if ci, err := ts.getContractInfo(toAddr.Hex()); err == nil {
-						ok = true
-						info = ci
-					}
-				}
-				if ok && erc20.IsTransferFunc(tx.Data()) {
-					to, amount, err := erc20.DecodeTransferData(tx.Data())
-					if err != nil {
-						log.Errorf("decode transaction %v fail:%v", tx, err)
-						return err
-					}
-					from := txe.From()
-					log.Debugf("Transaction:%s From:%s To:%s Amount:%s(%s)", tx.Hash().Hex(), from.Hex(), to.Hex(), amount, info.Symbol)
-					records = append(records, TransferRecord{
-						Contract:           info,
-						IsContractCreation: false,
-						TxHash:             strings.ToLower(tx.Hash().Hex()),
-						From:               strings.ToLower(from.Hex()),
-						To:                 strings.ToLower(to.Hex()),
-						Amount:             amount,
-					})
-				}
-			}
-
+			}(txs[i])
 		}
+		wg.Wait()
+	LOOP:
+		for {
+			select {
+			case record := <-datas:
+				records = append(records, record)
+			default:
+				break LOOP
+			}
+		}
+		log.Info("------------")
 		packet := TransferPacket{
 			BlockNumber: new(big.Int).Set(start_block),
 			Timestamp:   block_time,
