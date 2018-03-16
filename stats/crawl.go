@@ -184,18 +184,17 @@ func (ts *TransactionScanner) getContractInfo(addr string) (ContractInfo, error)
 	return info, nil
 }
 
-func (ts *TransactionScanner) handleTx(tx *types.Transaction) (record TransferRecord, skip bool, err error) {
+func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- TransferRecord) error {
 	txe := &contracts.TransactionWithExtra{Transaction: tx}
 	//是否合约创建交易
 	if txe.IsContractCreation() {
 		caddr := txe.ContractAddress()
 		if ts.isBadContract(caddr.Hex()) {
-			skip = true
-			return
+			return nil
 		}
 		if ts.isSubscribeAll() {
 			if info, err := ts.getContractInfo(caddr.Hex()); err == nil {
-				record = TransferRecord{
+				record := TransferRecord{
 					Contract:           info,
 					IsContractCreation: true,
 					TxHash:             strings.ToLower(tx.Hash().Hex()),
@@ -203,10 +202,11 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction) (record TransferRe
 					To:                 "",
 					Amount:             new(big.Int).SetInt64(0),
 				}
+				channel <- record
 			}
 		} else {
 			if info, ok := ts.mycontracts[strings.ToLower(caddr.Hex())]; ok {
-				record = TransferRecord{
+				record := TransferRecord{
 					Contract:           info,
 					IsContractCreation: true,
 					TxHash:             strings.ToLower(tx.Hash().Hex()),
@@ -214,13 +214,13 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction) (record TransferRe
 					To:                 "",
 					Amount:             new(big.Int).SetInt64(0),
 				}
+				channel <- record
 			}
 		}
 	} else {
 		toAddr := txe.To()
 		if ts.isBadContract(toAddr.Hex()) {
-			skip = true
-			return
+			return nil
 		}
 		info, ok := ts.mycontracts[strings.ToLower(toAddr.Hex())]
 		if !ok && ts.isSubscribeAll() {
@@ -230,15 +230,14 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction) (record TransferRe
 			}
 		}
 		if ok && erc20.IsTransferFunc(tx.Data()) {
-			to, amount, err1 := erc20.DecodeTransferData(tx.Data())
-			if err1 != nil {
+			to, amount, err := erc20.DecodeTransferData(tx.Data())
+			if err != nil {
 				log.Errorf("decode transaction %v fail:%v", tx, err)
-				err = err1
-				return
+				return err
 			}
 			from := txe.From()
 			log.Debugf("Transaction:%s From:%s To:%s Amount:%s(%s)", tx.Hash().Hex(), from.Hex(), to.Hex(), amount, info.Symbol)
-			record = TransferRecord{
+			record := TransferRecord{
 				Contract:           info,
 				IsContractCreation: false,
 				TxHash:             strings.ToLower(tx.Hash().Hex()),
@@ -246,9 +245,10 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction) (record TransferRe
 				To:                 strings.ToLower(to.Hex()),
 				Amount:             amount,
 			}
+			channel <- record
 		}
 	}
-	return
+	return nil
 }
 
 func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) error {
@@ -300,10 +300,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 			wg.Add(1)
 			go func(tx *types.Transaction) {
 				defer wg.Done()
-				record, skip, err := ts.handleTx(tx)
-				if err == nil && !skip {
-					datas <- record
-				}
+				ts.handleTx(tx, datas)
 			}(txs[i])
 		}
 		wg.Wait()
