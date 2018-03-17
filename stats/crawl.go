@@ -262,9 +262,9 @@ func minPositive(a, b int) int {
 	}
 }
 
-func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxTxParserCount int) error {
+func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxTxParserCount int) (*big.Int, error) {
 	if ts.scanning {
-		return errors.New("is running")
+		return start_block, errors.New("is running")
 	}
 	ts.scanning = true
 	channel := make(chan TransferPacket)
@@ -297,7 +297,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 		block, err := ts.conn.BlockByNumber(ctx, start_block)
 		if err != nil {
 			log.Errorf("fail to get block %s, %v", start_block.String(), err)
-			return err
+			return tblock, err
 		}
 		block_time := time.Unix(block.Time().Int64(), 0)
 		txs := block.Transactions()
@@ -331,7 +331,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 		channel <- packet
 		tblock.Set(start_block)
 	}
-	return nil
+	return new(big.Int).Add(tblock, big.NewInt(1)), nil
 }
 
 func (s *StatPrinter) RecieveRecords(p TransferPacket) {
