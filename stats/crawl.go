@@ -262,7 +262,7 @@ func minPositive(a, b int) int {
 	}
 }
 
-func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxTxParserCounts ...int) error {
+func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxTxParserCount int) error {
 	if ts.scanning {
 		return errors.New("is running")
 	}
@@ -290,11 +290,6 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 	end_block := new(big.Int).SetUint64(limit)
 	if limit > 0 {
 		end_block = end_block.Add(end_block, start_block)
-	}
-	// 最大交易解析并发数
-	maxTxParserCount := 0
-	if len(maxTxParserCounts) > 0 {
-		maxTxParserCount = maxTxParserCounts[0]
 	}
 	ctx := context.Background()
 	for ; limit == 0 || start_block.Cmp(end_block) < 0; start_block = start_block.Add(start_block, big.NewInt(1)) {
