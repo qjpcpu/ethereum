@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/qjpcpu/ethereum/contracts"
 	"github.com/qjpcpu/ethereum/contracts/erc20"
+	"github.com/qjpcpu/ethereum/swg"
 	"github.com/qjpcpu/log"
 	"math/big"
 	"strings"
@@ -25,6 +26,7 @@ type ContractInfo struct {
 type TransactionScanner struct {
 	mycontracts  map[string]ContractInfo
 	badcontracts map[string]struct{}
+	badlock      *sync.Mutex
 	conn         *ethclient.Client
 	listener     TxListener
 	mutex        *sync.Mutex
@@ -73,6 +75,7 @@ func GetScannerByClient(conn *ethclient.Client, lis TxListener) *TransactionScan
 	return &TransactionScanner{
 		mycontracts:  make(map[string]ContractInfo),
 		badcontracts: make(map[string]struct{}),
+		badlock:      &sync.Mutex{},
 		mutex:        &sync.Mutex{},
 		conn:         conn,
 		listener:     lis,
@@ -175,7 +178,9 @@ func (ts *TransactionScanner) getContractInfo(addr string) (ContractInfo, error)
 	totalSupply, err := token.TotalSupply(nil)
 	if err != nil {
 		log.Debugf("%s is not erc20 contract", addr)
+		ts.badlock.Lock()
 		ts.badcontracts[addr] = struct{}{}
+		ts.badlock.Unlock()
 		return info, err
 	}
 	info.TotalSupply = totalSupply.String()
@@ -189,7 +194,7 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 	//是否合约创建交易
 	if txe.IsContractCreation() {
 		caddr := txe.ContractAddress()
-		if ts.isBadContract(caddr.Hex()) {
+		if ts.isBadContract(caddr.Hex()) || !contracts.IsContract(ts.conn, caddr.Hex()) {
 			return nil
 		}
 		if ts.isSubscribeAll() {
@@ -219,7 +224,7 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 		}
 	} else {
 		toAddr := txe.To()
-		if ts.isBadContract(toAddr.Hex()) {
+		if ts.isBadContract(toAddr.Hex()) || !contracts.IsContract(ts.conn, toAddr.Hex()) {
 			return nil
 		}
 		info, ok := ts.mycontracts[strings.ToLower(toAddr.Hex())]
@@ -251,7 +256,18 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 	return nil
 }
 
-func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) error {
+func minPositive(a, b int) int {
+	if a == 0 || b == 0 {
+		return a + b
+	}
+	if a > b {
+		return b
+	} else {
+		return a
+	}
+}
+
+func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxTxParserCounts ...int) error {
 	if ts.scanning {
 		return errors.New("is running")
 	}
@@ -282,6 +298,11 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 	if limit > 0 {
 		end_block = end_block.Add(end_block, start_block)
 	}
+	// 最大交易解析并发数
+	maxTxParserCount := 0
+	if len(maxTxParserCounts) > 0 {
+		maxTxParserCount = maxTxParserCounts[0]
+	}
 	ctx := context.Background()
 	for ; limit == 0 || start_block.Cmp(end_block) < 0; start_block = start_block.Add(start_block, big.NewInt(1)) {
 		log.Debugf("start scan block %s", start_block.String())
@@ -292,12 +313,12 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64) erro
 		}
 		block_time := time.Unix(block.Time().Int64(), 0)
 		txs := block.Transactions()
-		log.Debugf("got %d transactions in block %s", len(txs), start_block.String())
+		log.Debugf("got %d raw transactions in block %s", len(txs), start_block.String())
 		var records []TransferRecord
-		var wg sync.WaitGroup
+		wg := swg.New(minPositive(len(txs), maxTxParserCount))
 		datas := make(chan TransferRecord, len(txs))
 		for i := range txs {
-			wg.Add(1)
+			wg.Add()
 			go func(tx *types.Transaction) {
 				defer wg.Done()
 				ts.handleTx(tx, datas)
