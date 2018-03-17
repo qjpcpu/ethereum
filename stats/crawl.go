@@ -24,13 +24,13 @@ type ContractInfo struct {
 }
 
 type TransactionScanner struct {
-	mycontracts  map[string]ContractInfo
-	badcontracts map[string]struct{}
-	badlock      *sync.Mutex
-	conn         *ethclient.Client
-	listener     TxListener
-	mutex        *sync.Mutex
-	scanning     bool
+	mycontracts    map[string]ContractInfo
+	badcontracts   map[string]struct{}
+	cachecontracts map[string]ContractInfo
+	conn           *ethclient.Client
+	listener       TxListener
+	mutex          *sync.Mutex
+	scanning       bool
 }
 
 type TransferPacket struct {
@@ -49,18 +49,15 @@ type TransferRecord struct {
 }
 
 type TxListener interface {
-	QueryContractFromCache(string) (ContractInfo, bool)
-	SaveContractToCache(ContractInfo)
 	RecieveRecords(TransferPacket)
 	ScanDone(start_block *big.Int, end_block *big.Int)
 }
 
 type StatPrinter struct {
-	cache map[string]ContractInfo
 }
 
 func NewStatPrinter() *StatPrinter {
-	return &StatPrinter{cache: make(map[string]ContractInfo)}
+	return &StatPrinter{}
 }
 
 func GetScanner(rawurl string, lis TxListener) (*TransactionScanner, error) {
@@ -73,12 +70,12 @@ func GetScanner(rawurl string, lis TxListener) (*TransactionScanner, error) {
 
 func GetScannerByClient(conn *ethclient.Client, lis TxListener) *TransactionScanner {
 	return &TransactionScanner{
-		mycontracts:  make(map[string]ContractInfo),
-		badcontracts: make(map[string]struct{}),
-		badlock:      &sync.Mutex{},
-		mutex:        &sync.Mutex{},
-		conn:         conn,
-		listener:     lis,
+		mycontracts:    make(map[string]ContractInfo),
+		cachecontracts: make(map[string]ContractInfo),
+		badcontracts:   make(map[string]struct{}),
+		mutex:          &sync.Mutex{},
+		conn:           conn,
+		listener:       lis,
 	}
 }
 
@@ -160,7 +157,7 @@ func (ts *TransactionScanner) SubscribeContracts(contractInfos ...ContractInfo) 
 
 func (ts *TransactionScanner) getContractInfo(addr string) (ContractInfo, error) {
 	addr = strings.ToLower(addr)
-	local, ok := ts.listener.QueryContractFromCache(addr)
+	local, ok := ts.queryContractFromCache(addr)
 	if ok {
 		log.Debugf("get contract info from local:%+v", local)
 		return local, nil
@@ -178,13 +175,11 @@ func (ts *TransactionScanner) getContractInfo(addr string) (ContractInfo, error)
 	totalSupply, err := token.TotalSupply(nil)
 	if err != nil {
 		log.Debugf("%s is not erc20 contract", addr)
-		ts.badlock.Lock()
-		ts.badcontracts[addr] = struct{}{}
-		ts.badlock.Unlock()
+		ts.tagBadContract(addr)
 		return info, err
 	}
 	info.TotalSupply = totalSupply.String()
-	ts.listener.SaveContractToCache(info)
+	ts.saveContractToCache(info)
 	log.Debugf("get contract info from remote:%+v", info)
 	return info, nil
 }
@@ -271,7 +266,6 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 	if ts.scanning {
 		return errors.New("is running")
 	}
-	ts.mutex.Lock()
 	ts.scanning = true
 	channel := make(chan TransferPacket)
 	finish := make(chan struct{})
@@ -291,7 +285,6 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 	}()
 	defer func() {
 		ts.scanning = false
-		ts.mutex.Unlock()
 		finish <- struct{}{}
 	}()
 	end_block := new(big.Int).SetUint64(limit)
@@ -349,18 +342,26 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 func (s *StatPrinter) RecieveRecords(p TransferPacket) {
 	log.Infof("recieved %d records of block %v", len(p.Records), p.BlockNumber)
 	for _, record := range p.Records {
-		log.Infof("%s: %s ==> %s %v", record.TxHash, record.From, record.To, record.Amount.String())
+		log.Infof("%s: tx:%s %s ==> %s %v", record.Contract.Symbol, record.TxHash, record.From, record.To, record.Amount.String())
 	}
 }
 
 func (s *StatPrinter) ScanDone(start, end *big.Int) {
 }
 
-func (s *StatPrinter) QueryContractFromCache(addr string) (ContractInfo, bool) {
-	c, ok := s.cache[addr]
+func (s *TransactionScanner) queryContractFromCache(addr string) (ContractInfo, bool) {
+	c, ok := s.cachecontracts[strings.ToLower(addr)]
 	return c, ok
 }
 
-func (s *StatPrinter) SaveContractToCache(c ContractInfo) {
-	s.cache[c.Address] = c
+func (s *TransactionScanner) saveContractToCache(c ContractInfo) {
+	s.mutex.Lock()
+	s.cachecontracts[strings.ToLower(c.Address)] = c
+	s.mutex.Unlock()
+}
+
+func (s *TransactionScanner) tagBadContract(addr string) {
+	s.mutex.Lock()
+	s.badcontracts[strings.ToLower(addr)] = struct{}{}
+	s.mutex.Unlock()
 }
