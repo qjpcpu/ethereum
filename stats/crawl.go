@@ -3,6 +3,7 @@ package stats
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -262,9 +263,9 @@ func minPositive(a, b int) int {
 	}
 }
 
-func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxTxParserCount int) (*big.Int, error) {
+func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxTxParserCount int) error {
 	if ts.scanning {
-		return start_block, errors.New("is running")
+		return errors.New("is running")
 	}
 	ts.scanning = true
 	channel := make(chan TransferPacket)
@@ -297,7 +298,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 		block, err := ts.conn.BlockByNumber(ctx, start_block)
 		if err != nil {
 			log.Errorf("fail to get block %s, %v", start_block.String(), err)
-			return tblock, err
+			return fmt.Errorf("fail to get block %v,%v", start_block, err)
 		}
 		block_time := time.Unix(block.Time().Int64(), 0)
 		txs := block.Transactions()
@@ -331,7 +332,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 		channel <- packet
 		tblock.Set(start_block)
 	}
-	return new(big.Int).Add(tblock, big.NewInt(1)), nil
+	return nil
 }
 
 func (s *StatPrinter) RecieveRecords(p TransferPacket) {
