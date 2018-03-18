@@ -51,6 +51,7 @@ type TransferRecord struct {
 
 type TxListener interface {
 	RecieveRecords(TransferPacket)
+	// [start,end)
 	ScanDone(start_block *big.Int, end_block *big.Int)
 }
 
@@ -270,7 +271,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 	ts.scanning = true
 	channel := make(chan TransferPacket)
 	finish := make(chan struct{})
-	fblock, tblock := new(big.Int).Set(start_block), new(big.Int).Set(start_block)
+	fblock, tblock := new(big.Int).Set(start_block), new(big.Int).Add(start_block, big.NewInt(-1))
 	go func() {
 		for {
 			select {
@@ -279,7 +280,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 			case <-finish:
 				close(finish)
 				close(channel)
-				ts.listener.ScanDone(fblock, tblock)
+				ts.listener.ScanDone(fblock, new(big.Int).Add(tblock, big.NewInt(1)))
 				return
 			}
 		}
