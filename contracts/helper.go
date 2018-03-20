@@ -24,6 +24,14 @@ func (tx *TransactionWithExtra) From() *common.Address {
 	return nil
 }
 
+func (tx *TransactionWithExtra) IsSuccess(conn *ethclient.Client) (bool, error) {
+	rep, err := conn.TransactionReceipt(context.Background(), tx.Hash())
+	if err != nil {
+		return false, err
+	}
+	return rep.Status == types.ReceiptStatusSuccessful, nil
+}
+
 // 对于合约创建交易,获取该交易创建的合约地址
 func (tx *TransactionWithExtra) ContractAddress() *common.Address {
 	address := crypto.CreateAddress(*tx.From(), tx.Nonce())

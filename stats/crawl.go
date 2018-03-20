@@ -48,6 +48,7 @@ type TransferRecord struct {
 	IsContractCreation bool
 	To                 string
 	Amount             *big.Int
+	Success            *bool // true/false/unknown
 }
 
 type TxListener interface {

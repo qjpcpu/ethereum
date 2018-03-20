@@ -34,3 +34,30 @@ func TestFrom(t *testing.T) {
 		t.Fatalf("get contract addr fail")
 	}
 }
+
+func TestStatus(t *testing.T) {
+	addr := `0xbea29cce7780090fe6e8fa4ce16acd9a684d6a8b931a422dfa14cd66370836ec`
+	conn, err := ethclient.Dial("https://api.myetherapi.com/eth")
+	if err != nil {
+		t.Fatalf("Failed to connect to the Ethereum client: %v", err)
+	}
+	tx, _, err := conn.TransactionByHash(context.Background(), common.HexToHash(addr))
+	txe := TransactionWithExtra{tx}
+	valid, err := txe.IsSuccess(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if valid {
+		t.Fatal("shold invalid")
+	}
+	addr = `0x78ef04aede619ed9395bb2b2bde12d6a2320d2d54d8db4522a7a65f400f8d427`
+	tx, _, _ = conn.TransactionByHash(context.Background(), common.HexToHash(addr))
+	txe = TransactionWithExtra{tx}
+	valid, err = txe.IsSuccess(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !valid {
+		t.Fatal("shold valid")
+	}
+}
