@@ -190,6 +190,14 @@ func (ts *TransactionScanner) getContractInfo(addr string) (ContractInfo, error)
 	return info, nil
 }
 
+func (ts *TransactionScanner) isTransactionSuccess(tx *contracts.TransactionWithExtra) *bool {
+	success, err := tx.IsSuccess(ts.conn)
+	if err != nil {
+		return nil
+	}
+	return &success
+}
+
 func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- TransferRecord) error {
 	txe := &contracts.TransactionWithExtra{Transaction: tx}
 	//是否合约创建交易
@@ -207,6 +215,7 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 					From:               strings.ToLower(txe.From().Hex()),
 					To:                 "",
 					Amount:             new(big.Int).SetInt64(0),
+					Success:            ts.isTransactionSuccess(txe),
 				}
 				channel <- record
 			}
@@ -219,6 +228,7 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 					From:               strings.ToLower(txe.From().Hex()),
 					To:                 "",
 					Amount:             new(big.Int).SetInt64(0),
+					Success:            ts.isTransactionSuccess(txe),
 				}
 				channel <- record
 			}
@@ -250,6 +260,7 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 				From:               strings.ToLower(from.Hex()),
 				To:                 strings.ToLower(to.Hex()),
 				Amount:             amount,
+				Success:            ts.isTransactionSuccess(txe),
 			}
 			channel <- record
 		}
