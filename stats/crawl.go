@@ -30,7 +30,7 @@ type TransactionScanner struct {
 	cachecontracts map[string]ContractInfo
 	conn           *ethclient.Client
 	listener       TxListener
-	mutex          *sync.Mutex
+	mutex          *sync.RWMutex
 	scanning       bool
 }
 
@@ -75,7 +75,7 @@ func GetScannerByClient(conn *ethclient.Client, lis TxListener) *TransactionScan
 		mycontracts:    make(map[string]ContractInfo),
 		cachecontracts: make(map[string]ContractInfo),
 		badcontracts:   make(map[string]struct{}),
-		mutex:          &sync.Mutex{},
+		mutex:          &sync.RWMutex{},
 		conn:           conn,
 		listener:       lis,
 	}
@@ -347,6 +347,8 @@ func (s *StatPrinter) ScanDone(start, end *big.Int) {
 }
 
 func (s *TransactionScanner) queryContractFromCache(addr string) (ContractInfo, bool) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	c, ok := s.cachecontracts[strings.ToLower(addr)]
 	return c, ok
 }
