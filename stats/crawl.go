@@ -22,6 +22,7 @@ type ContractInfo struct {
 	Symbol      string
 	TotalSupply string
 	Address     string
+	Decimals    uint8
 }
 
 type TransactionScanner struct {
@@ -120,6 +121,7 @@ func (ts *TransactionScanner) Subscribe(contractAddrs ...string) error {
 		info.Address = strings.ToLower(addr.Hex())
 		info.Name, _ = token.Name(nil)
 		info.Symbol, _ = token.Symbol(nil)
+		info.Decimals, _ = token.Decimals(nil)
 		totalSupply, err := token.TotalSupply(nil)
 		if err != nil {
 			return err
@@ -174,6 +176,7 @@ func (ts *TransactionScanner) getContractInfo(addr string) (ContractInfo, error)
 	info.Address = addr
 	info.Name, _ = token.Name(nil)
 	info.Symbol, _ = token.Symbol(nil)
+	info.Decimals, _ = token.Decimals(nil)
 	totalSupply, err := token.TotalSupply(nil)
 	if err != nil {
 		log.Debugf("%s is not erc20 contract", addr)
