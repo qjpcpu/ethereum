@@ -41,6 +41,14 @@ type TransferPacket struct {
 	Records     []TransferRecord
 }
 
+type TransactionState int
+
+const (
+	TransactionStateUnknown TransactionState = iota
+	TransactionStateSuccess
+	TransactionStateFail
+)
+
 type TransferRecord struct {
 	Contract           ContractInfo
 	TxHash             string
@@ -48,7 +56,7 @@ type TransferRecord struct {
 	IsContractCreation bool
 	To                 string
 	Amount             *big.Int
-	Success            *bool // true/false/unknown
+	Success            TransactionState
 }
 
 type TxListener interface {
@@ -190,12 +198,16 @@ func (ts *TransactionScanner) getContractInfo(addr string) (ContractInfo, error)
 	return info, nil
 }
 
-func (ts *TransactionScanner) isTransactionSuccess(tx *contracts.TransactionWithExtra) *bool {
+func (ts *TransactionScanner) getTransactionState(tx *contracts.TransactionWithExtra) TransactionState {
 	success, err := tx.IsSuccess(ts.conn)
 	if err != nil {
-		return nil
+		return TransactionStateUnknown
 	}
-	return &success
+	if success {
+		return TransactionStateSuccess
+	} else {
+		return TransactionStateFail
+	}
 }
 
 func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- TransferRecord) error {
@@ -215,7 +227,7 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 					From:               strings.ToLower(txe.From().Hex()),
 					To:                 "",
 					Amount:             new(big.Int).SetInt64(0),
-					Success:            ts.isTransactionSuccess(txe),
+					Success:            ts.getTransactionState(txe),
 				}
 				channel <- record
 			}
@@ -228,7 +240,7 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 					From:               strings.ToLower(txe.From().Hex()),
 					To:                 "",
 					Amount:             new(big.Int).SetInt64(0),
-					Success:            ts.isTransactionSuccess(txe),
+					Success:            ts.getTransactionState(txe),
 				}
 				channel <- record
 			}
@@ -260,7 +272,7 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 				From:               strings.ToLower(from.Hex()),
 				To:                 strings.ToLower(to.Hex()),
 				Amount:             amount,
-				Success:            ts.isTransactionSuccess(txe),
+				Success:            ts.getTransactionState(txe),
 			}
 			channel <- record
 		}
