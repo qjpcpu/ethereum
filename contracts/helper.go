@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -55,13 +56,28 @@ func (tx *TransactionWithExtra) IsContractCreation() bool {
 }
 
 func DeployContract(conn *ethclient.Client, keyJson, keyPasswd, tokenABI, tokenBin string, params ...interface{}) (common.Address, *types.Transaction, error) {
+	if !strings.HasPrefix(tokenBin, `0x`) {
+		tokenBin = `0x` + tokenBin
+	}
+	parsed, err := abi.JSON(strings.NewReader(tokenABI))
+	if err != nil {
+		return common.Address{}, nil, err
+	}
+	address, tx, _, err := bind.DeployContract(BuildTransactOpts(keyJson, keyPasswd), parsed, common.FromHex(tokenBin), conn, params...)
+	if err != nil {
+		return common.Address{}, nil, err
+	}
+	return address, tx, nil
+}
+
+func BuildTransactOpts(keyJson, keyPasswd string) *bind.TransactOpts {
 	addr := struct {
 		Address string `json:"address"`
 	}{}
 	if err := json.Unmarshal([]byte(keyJson), &addr); err != nil {
-		return common.Address{}, nil, err
+		panic(fmt.Sprintf("build transactOpts fail:%v", err))
 	}
-	auth := bind.TransactOpts{
+	return &bind.TransactOpts{
 		From:  common.HexToAddress(`0x` + addr.Address),
 		Nonce: nil,
 		Signer: func(signer types.Signer, addresses common.Address,
@@ -79,20 +95,4 @@ func DeployContract(conn *ethclient.Client, keyJson, keyPasswd, tokenABI, tokenB
 		Value:   nil,
 		Context: context.Background(),
 	}
-	return deployContract(&auth, conn, tokenABI, tokenBin, params...)
-}
-
-func deployContract(auth *bind.TransactOpts, backend bind.ContractBackend, tokenABI, tokenBin string, params ...interface{}) (common.Address, *types.Transaction, error) {
-	if !strings.HasPrefix(tokenBin, `0x`) {
-		tokenBin = `0x` + tokenBin
-	}
-	parsed, err := abi.JSON(strings.NewReader(tokenABI))
-	if err != nil {
-		return common.Address{}, nil, err
-	}
-	address, tx, _, err := bind.DeployContract(auth, parsed, common.FromHex(tokenBin), backend, params...)
-	if err != nil {
-		return common.Address{}, nil, err
-	}
-	return address, tx, nil
 }
