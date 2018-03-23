@@ -143,15 +143,19 @@ func (ts *TransactionScanner) Subscribe(contractAddrs ...string) error {
 }
 
 func (ts *TransactionScanner) isBadContract(addr string) bool {
+	ts.mutex.RLock()
 	_, ok := ts.badcontracts[strings.ToLower(addr)]
+	ts.mutex.RUnlock()
 	return ok
 }
 
 func (ts *TransactionScanner) GetSubscribes() []ContractInfo {
+	ts.mutex.RLock()
 	var list []ContractInfo
 	for _, c := range ts.mycontracts {
 		list = append(list, c)
 	}
+	ts.mutex.RUnlock()
 	return list
 }
 
