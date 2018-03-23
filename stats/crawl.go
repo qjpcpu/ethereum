@@ -300,7 +300,7 @@ func (ts *TransactionScanner) StartScan(start_block *big.Int, limit uint64, maxT
 		return errors.New("is running")
 	}
 	ts.scanning = true
-	channel := make(chan TransferPacket)
+	channel := make(chan TransferPacket, 1000)
 	finish := make(chan struct{})
 	fblock, tblock := new(big.Int).Set(start_block), new(big.Int).Add(start_block, big.NewInt(-1))
 	go func() {
