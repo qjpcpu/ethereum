@@ -101,6 +101,13 @@ func (ts *TransactionScanner) isSubscribeAll() bool {
 	return len(ts.mycontracts) == 0
 }
 
+func (ts *TransactionScanner) HasSubscribe(addr string) (ContractInfo, bool) {
+	ts.mutex.RLock()
+	info, ok := ts.mycontracts[strings.ToLower(addr)]
+	ts.mutex.RUnlock()
+	return info, ok
+}
+
 func (ts *TransactionScanner) SubscribeAll() error {
 	if ts.scanning {
 		return errors.New("is running")
@@ -236,7 +243,7 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 				channel <- record
 			}
 		} else {
-			if info, ok := ts.mycontracts[strings.ToLower(caddr.Hex())]; ok {
+			if info, ok := ts.HasSubscribe(caddr.Hex()); ok {
 				record := TransferRecord{
 					Contract:           info,
 					IsContractCreation: true,
@@ -254,7 +261,7 @@ func (ts *TransactionScanner) handleTx(tx *types.Transaction, channel chan<- Tra
 		if ts.isBadContract(toAddr.Hex()) || !contracts.IsContract(ts.conn, toAddr.Hex()) {
 			return nil
 		}
-		info, ok := ts.mycontracts[strings.ToLower(toAddr.Hex())]
+		info, ok := ts.HasSubscribe(toAddr.Hex())
 		if !ok && ts.isSubscribeAll() {
 			if ci, err := ts.getContractInfo(toAddr.Hex()); err == nil {
 				ok = true
