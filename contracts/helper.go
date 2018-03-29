@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+
 	//"math/big"
 	"regexp"
 	"strings"
@@ -95,4 +96,8 @@ func BuildTransactOpts(keyJson, keyPasswd string) *bind.TransactOpts {
 		Value:   nil,
 		Context: context.Background(),
 	}
+}
+
+func Keccak256Hash(data string) common.Hash {
+	return crypto.Keccak256Hash([]byte(data))
 }

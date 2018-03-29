@@ -2,7 +2,9 @@ package contracts
 
 import (
 	"context"
+	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"math/big"
 	"testing"
@@ -78,4 +80,39 @@ func TestDeployContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(addr.String(), tx)
+}
+
+func TestX(t *testing.T) {
+	t.Log(Keccak256Hash("Birth(address,uint256,uint256,uint256,uint256)").Hex())
+	topic := Keccak256Hash("Birth(address,uint256,uint256,uint256,uint256)")
+	conn, err := ethclient.Dial("/Users/jason/repository/private-chain/data0/geth.ipc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := make(chan types.Log)
+	fq := ethereum.FilterQuery{
+		FromBlock: big.NewInt(5342459),
+		//		ToBlock:   big.NewInt(5342460),
+		Addresses: []common.Address{common.HexToAddress("0x06012c8cf97bead5deae237070f9587f8e7a266d")},
+		Topics:    [][]common.Hash{[]common.Hash{topic}},
+	}
+	if _, err = conn.SubscribeFilterLogs(context.Background(), fq, ch); err != nil {
+		t.Fatal(err)
+	}
+	logs, err := conn.FilterLogs(context.TODO(), ethereum.FilterQuery{
+		FromBlock: big.NewInt(6342459),
+		//		ToBlock:   big.NewInt(5342460),
+		Addresses: []common.Address{common.HexToAddress("0x06012c8cf97bead5deae237070f9587f8e7a266d")},
+		Topics:    [][]common.Hash{[]common.Hash{topic}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(len(logs))
+	// l1 := logs[0]
+	// t.Log(l1.String())
+	// t.Log(common.BytesToAddress(l1.Data[:32]).Hex())
+	// t.Log(new(big.Int).SetBytes(l1.Data[32:64]).String())
+	// t.Log(new(big.Int).SetBytes(l1.Data[64:96]).String())
+	// t.Log(new(big.Int).SetBytes(l1.Data[96:128]).String())
 }
