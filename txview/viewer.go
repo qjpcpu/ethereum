@@ -2,6 +2,7 @@ package txview
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -104,10 +105,11 @@ type TxResult struct {
 }
 
 type TxScan struct {
-	filters  *contractFilters
-	conn     *ethclient.Client
-	receiver chan<- TxsInfo
-	done     chan<- TxResult
+	filters    *contractFilters
+	conn       *ethclient.Client
+	receiver   chan<- TxsInfo
+	done       chan<- TxResult
+	force_exit chan struct{}
 }
 
 func GetScanner(rawurl string, data chan<- TxsInfo, done chan<- TxResult) (*TxScan, error) {
@@ -120,15 +122,20 @@ func GetScanner(rawurl string, data chan<- TxsInfo, done chan<- TxResult) (*TxSc
 
 func GetScannerByClient(conn *ethclient.Client, data chan<- TxsInfo, done chan<- TxResult) *TxScan {
 	return &TxScan{
-		filters:  newContractFilters(),
-		conn:     conn,
-		receiver: data,
-		done:     done,
+		filters:    newContractFilters(),
+		conn:       conn,
+		receiver:   data,
+		done:       done,
+		force_exit: make(chan struct{}),
 	}
 }
 
 func (ts *TxScan) Subscribe(contractAddr string, func_names ...string) {
 	ts.filters.add(contractAddr, func_names...)
+}
+
+func (ts *TxScan) Stop() {
+	ts.force_exit <- struct{}{}
 }
 
 func (ts *TxScan) handleTx(tx *types.Transaction, channel chan<- TxInfo) error {
@@ -225,5 +232,11 @@ func (ts *TxScan) StartScan(start_block *big.Int, limit uint64, maxTxParserCount
 		}
 		channel <- packet
 		tblock.Set(start_block)
+		select {
+		case <-ts.force_exit:
+			result.Error = errors.New("client force quit")
+			return
+		default:
+		}
 	}
 }
