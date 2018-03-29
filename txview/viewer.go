@@ -16,6 +16,41 @@ import (
 	"time"
 )
 
+type TxsInfo struct {
+	BlockNumber *big.Int
+	Timestamp   time.Time
+	Txs         []TxInfo
+}
+
+type TxState int
+
+const (
+	TxStateUnknown TxState = 0
+	TxStateSuccess         = 1
+	TxStateFail            = 2
+)
+
+type TxInfo struct {
+	Tx              *types.Transaction
+	ContractAddress string
+	Function        string
+	State           TxState
+}
+
+type TxResult struct {
+	Start *big.Int
+	End   *big.Int
+	Error error
+}
+
+type TxScan struct {
+	filters    *contractFilters
+	conn       *ethclient.Client
+	receiver   chan<- TxsInfo
+	done       chan<- TxResult
+	force_exit chan struct{}
+}
+
 type contractFilters struct {
 	// contract => function_signature
 	list map[string][]string
@@ -86,32 +121,6 @@ func (cf *contractFilters) isHit(contract_addr string, txData []byte) (string, b
 	}
 }
 
-type TxsInfo struct {
-	BlockNumber *big.Int
-	Timestamp   time.Time
-	Txs         []TxInfo
-}
-
-type TxInfo struct {
-	Tx              *types.Transaction
-	ContractAddress string
-	Function        string
-}
-
-type TxResult struct {
-	Start *big.Int
-	End   *big.Int
-	Error error
-}
-
-type TxScan struct {
-	filters    *contractFilters
-	conn       *ethclient.Client
-	receiver   chan<- TxsInfo
-	done       chan<- TxResult
-	force_exit chan struct{}
-}
-
 func GetScanner(rawurl string, data chan<- TxsInfo, done chan<- TxResult) (*TxScan, error) {
 	if conn, err := ethclient.Dial(rawurl); err != nil {
 		return nil, err
@@ -145,10 +154,20 @@ func (ts *TxScan) handleTx(tx *types.Transaction, channel chan<- TxInfo) error {
 		if !hit {
 			return nil
 		}
+		state := TxStateUnknown
+		rep, err := ts.conn.TransactionReceipt(context.Background(), tx.Hash())
+		if err == nil {
+			if rep.Status == types.ReceiptStatusSuccessful {
+				state = TxStateSuccess
+			} else {
+				state = TxStateFail
+			}
+		}
 		channel <- TxInfo{
 			Tx:              tx,
 			ContractAddress: strings.ToLower(to.Hex()),
 			Function:        func_name,
+			State:           state,
 		}
 	}
 	return nil
@@ -165,6 +184,8 @@ func minPositive(a, b int) int {
 	}
 }
 
+// limit:0 no limit
+// maxTxParserCount: 0 full parallel
 func (ts *TxScan) StartScan(start_block *big.Int, limit uint64, maxTxParserCount int) {
 	channel := make(chan TxsInfo, 1000)
 	finish := make(chan struct{})
