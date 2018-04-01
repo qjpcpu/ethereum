@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -11,13 +12,17 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-
-	//"math/big"
+	"math/big"
 	"regexp"
 	"strings"
 )
 
 var regFrom = regexp.MustCompile(`From:\s+([^\s]+)`)
+
+type TxOptsBuilder struct {
+	opts *bind.TransactOpts
+	Err  error
+}
 
 type TransactionWithExtra struct {
 	*types.Transaction
@@ -56,6 +61,10 @@ func (tx *TransactionWithExtra) IsContractCreation() bool {
 	return tx.To() == nil
 }
 
+func Keccak256Hash(data string) common.Hash {
+	return crypto.Keccak256Hash([]byte(data))
+}
+
 func DeployContract(conn *ethclient.Client, keyJson, keyPasswd, tokenABI, tokenBin string, params ...interface{}) (common.Address, *types.Transaction, error) {
 	if !strings.HasPrefix(tokenBin, `0x`) {
 		tokenBin = `0x` + tokenBin
@@ -78,7 +87,7 @@ func BuildTransactOpts(keyJson, keyPasswd string) *bind.TransactOpts {
 	if err := json.Unmarshal([]byte(keyJson), &addr); err != nil {
 		panic(fmt.Sprintf("build transactOpts fail:%v", err))
 	}
-	return &bind.TransactOpts{
+	opts := &bind.TransactOpts{
 		From:  common.HexToAddress(`0x` + addr.Address),
 		Nonce: nil,
 		Signer: func(signer types.Signer, addresses common.Address,
@@ -93,11 +102,53 @@ func BuildTransactOpts(keyJson, keyPasswd string) *bind.TransactOpts {
 			}
 			return signTransaction, nil
 		},
-		Value:   nil,
+		Value:   big.NewInt(0),
 		Context: context.Background(),
 	}
+	return opts
 }
 
-func Keccak256Hash(data string) common.Hash {
-	return crypto.Keccak256Hash([]byte(data))
+func NewTxOptsBuilder(keyJson, keyPwd string) *TxOptsBuilder {
+	return &TxOptsBuilder{opts: BuildTransactOpts(keyJson, keyPwd)}
+}
+
+func (b *TxOptsBuilder) Get() *bind.TransactOpts {
+	return b.opts
+}
+
+func (b *TxOptsBuilder) BuildValue(val *big.Int) *TxOptsBuilder {
+	b.opts.Value = val
+	return b
+}
+
+func (b *TxOptsBuilder) BuildNonce(nonce *big.Int) *TxOptsBuilder {
+	b.opts.Nonce = nonce
+	return b
+}
+
+func (b *TxOptsBuilder) BuildSuggestGasPrice(conn *ethclient.Client) *TxOptsBuilder {
+	var err error
+	b.opts.GasPrice, err = conn.SuggestGasPrice(context.TODO())
+	if err != nil {
+		b.Err = err
+	}
+	return b
+}
+
+// method是真实函数名称如erc20的transfer
+func (b *TxOptsBuilder) BuildGasLimit(conn *ethclient.Client, contract_addr common.Address, abi_str string, method string, params ...interface{}) *TxOptsBuilder {
+	parsed, err := abi.JSON(strings.NewReader(abi_str))
+	if err != nil {
+		b.Err = err
+		return b
+	}
+	input, err := parsed.Pack(method, params...)
+	msg := ethereum.CallMsg{From: b.opts.From, To: &contract_addr, Value: b.opts.Value, Data: input}
+	limit, err := conn.EstimateGas(context.TODO(), msg)
+	if err != nil {
+		b.Err = err
+	} else {
+		b.opts.GasLimit = limit
+	}
+	return b
 }
