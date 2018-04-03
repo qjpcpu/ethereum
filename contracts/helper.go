@@ -158,6 +158,11 @@ func (b *TxOptsBuilder) BuildGasLimitMannual(limit uint64) *TxOptsBuilder {
 	return b
 }
 
+func (b *TxOptsBuilder) BuildGasPriceMannual(limit uint64) *TxOptsBuilder {
+	b.opts.GasPrice = new(big.Int).SetUint64(limit)
+	return b
+}
+
 // method是真实函数名称如erc20的transfer
 func (b *TxOptsBuilder) BuildGasLimit(conn *ethclient.Client, contract_addr common.Address, abi_str string, method string, params ...interface{}) *TxOptsBuilder {
 	parsed, err := abi.JSON(strings.NewReader(abi_str))
