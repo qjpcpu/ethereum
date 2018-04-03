@@ -88,15 +88,15 @@ return 0
 `)
 )
 
-type NonceManger struct {
+type NonceManager struct {
 	NoncesHash string
 }
 
-func NewNonceManager(nonce_name string) NonceManger {
-	return NonceManger{NoncesHash: nonce_name}
+func NewNonceManager(nonce_name string) NonceManager {
+	return NonceManager{NoncesHash: nonce_name}
 }
 
-func (n NonceManger) GiveNonce(conn redis.Conn, addr common.Address, ethConn ...*ethclient.Client) (uint64, error) {
+func (n NonceManager) GiveNonce(conn redis.Conn, addr common.Address, ethConn ...*ethclient.Client) (uint64, error) {
 	address := strings.ToLower(addr.Hex())
 	now := time.Now()
 	errcode, err := redis.Int64(giveNonceScript.Do(conn, n.NoncesHash, address, now.Unix()))
@@ -116,7 +116,7 @@ func (n NonceManger) GiveNonce(conn redis.Conn, addr common.Address, ethConn ...
 	}
 }
 
-func (n NonceManger) SyncNonce(redis_conn redis.Conn, addr common.Address, conn *ethclient.Client) (uint64, error) {
+func (n NonceManager) SyncNonce(redis_conn redis.Conn, addr common.Address, conn *ethclient.Client) (uint64, error) {
 	nonce, err := conn.PendingNonceAt(context.Background(), addr)
 	if err != nil {
 		return 0, err
@@ -125,7 +125,7 @@ func (n NonceManger) SyncNonce(redis_conn redis.Conn, addr common.Address, conn 
 	return nonce, err
 }
 
-func (n NonceManger) CommitNonce(redis_conn redis.Conn, addr common.Address, nonce_number uint64, success bool) error {
+func (n NonceManager) CommitNonce(redis_conn redis.Conn, addr common.Address, nonce_number uint64, success bool) error {
 	ok := 0
 	if !success {
 		ok = 1
