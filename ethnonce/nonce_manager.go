@@ -11,6 +11,9 @@ import (
 )
 
 var (
+	ErrNotInitAddress = errors.New("not initailize")
+	ErrOtherHoldNonce = errors.New("others hold the nonce")
+
 	// redis-cli --eval give.lua hash_name , 0x123 timestamp(in second)
 	giveNonceScript = redis.NewScript(1, `
 local key = KEYS[1]
@@ -105,9 +108,9 @@ func (n NonceManger) GiveNonce(conn redis.Conn, addr common.Address, ethConn ...
 	}
 	switch errcode {
 	case -1:
-		return 0, errors.New("not initailize")
+		return 0, ErrNotInitAddress
 	case -2:
-		return 0, errors.New("others hold the nonce")
+		return 0, ErrOtherHoldNonce
 	default:
 		return uint64(errcode), nil
 	}
@@ -133,9 +136,9 @@ func (n NonceManger) CommitNonce(redis_conn redis.Conn, addr common.Address, non
 	}
 	switch code {
 	case -1:
-		return errors.New("not initailize")
+		return ErrNotInitAddress
 	case -2:
-		return errors.New("not your nonce")
+		return ErrOtherHoldNonce
 	default:
 		return nil
 	}
