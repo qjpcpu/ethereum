@@ -81,14 +81,8 @@ func DeployContract(conn *ethclient.Client, keyJson, keyPasswd, tokenABI, tokenB
 }
 
 func BuildTransactOpts(keyJson, keyPasswd string) *bind.TransactOpts {
-	addr := struct {
-		Address string `json:"address"`
-	}{}
-	if err := json.Unmarshal([]byte(keyJson), &addr); err != nil {
-		panic(fmt.Sprintf("build transactOpts fail:%v", err))
-	}
 	opts := &bind.TransactOpts{
-		From:  common.HexToAddress(`0x` + addr.Address),
+		From:  DecodeKeystoreAddress([]byte(keyJson)),
 		Nonce: nil,
 		Signer: func(signer types.Signer, addresses common.Address,
 			transaction *types.Transaction) (*types.Transaction, error) {
@@ -108,12 +102,36 @@ func BuildTransactOpts(keyJson, keyPasswd string) *bind.TransactOpts {
 	return opts
 }
 
+func DecodeKeystoreAddress(keyJsonStr []byte) common.Address {
+	addr := struct {
+		Address string `json:"address"`
+	}{}
+	if err := json.Unmarshal(keyJsonStr, &addr); err != nil {
+		panic(fmt.Sprintf("parse address fail:%v", err))
+	}
+	if !strings.HasPrefix(addr.Address, "0x") {
+		addr.Address = `0x` + addr.Address
+	}
+	return common.HexToAddress(addr.Address)
+}
+
 func NewTxOptsBuilder(keyJson, keyPwd string) *TxOptsBuilder {
 	return &TxOptsBuilder{opts: BuildTransactOpts(keyJson, keyPwd)}
 }
 
 func (b *TxOptsBuilder) Get() *bind.TransactOpts {
-	return b.opts
+	t := new(bind.TransactOpts)
+	*t = *b.opts
+	if b.opts.Nonce != nil {
+		t.Nonce = new(big.Int).Set(b.opts.Nonce)
+	}
+	if b.opts.Value != nil {
+		t.Value = new(big.Int).Set(b.opts.Value)
+	}
+	if b.opts.GasPrice != nil {
+		t.GasPrice = new(big.Int).Set(b.opts.GasPrice)
+	}
+	return t
 }
 
 func (b *TxOptsBuilder) BuildValue(val *big.Int) *TxOptsBuilder {
