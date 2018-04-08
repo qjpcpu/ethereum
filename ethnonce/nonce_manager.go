@@ -96,6 +96,20 @@ func NewNonceManager(nonce_name string) NonceManager {
 	return NonceManager{NoncesHash: nonce_name}
 }
 
+func (n NonceManager) MustGiveNonce(conn redis.Conn, addr common.Address, ethConn ...*ethclient.Client) (uint64, error) {
+	var code uint64
+	var err error
+	for i := 0; i < 600; i++ {
+		code, err = n.GiveNonce(conn, addr, ethConn...)
+		if err == nil || err == ErrNotInitAddress {
+			break
+		}
+		// err == ErrOtherHoldNonce
+		<-time.After(100 * time.Millisecond)
+	}
+	return code, err
+}
+
 func (n NonceManager) GiveNonce(conn redis.Conn, addr common.Address, ethConn ...*ethclient.Client) (uint64, error) {
 	address := strings.ToLower(addr.Hex())
 	now := time.Now()
