@@ -73,14 +73,22 @@ end
 -- iscommit already == 0, we consider is OK
 return 0
 `)
-	// redis-cli --eval ./sync_nonce.lua n , 0x123 nonce_number
+	// redis-cli --eval ./sync_nonce.lua n , 0x123 nonce_number timestamp
 	syncNonceScript = redis.NewScript(1, `
 local key = KEYS[1]
 local field_addr = ARGV[1]
 local nonce = ARGV[2]
+local timestamp = tonumber(ARGV[3])  -- second
 local field_commit = field_addr.."_cmt"
 local field_timestamp = field_addr.."_stp"
 
+if redis.call("HEXISTS", key, field_addr) ~= 0 then
+    local iscommit = tonumber(redis.call("HGET", key, field_commit))
+    local lasttime = tonumber(redis.call("HGET",key, field_timestamp))
+    if iscommit ~= 0 and lasttime + 60 > timestamp then
+        return -1
+    end
+end
 redis.call("HSET", key, field_addr, nonce)
 redis.call("HSET", key, field_timestamp, 0)
 redis.call("HSET", key, field_commit, 0)
@@ -135,7 +143,13 @@ func (n NonceManager) SyncNonce(redis_conn redis.Conn, addr common.Address, conn
 	if err != nil {
 		return 0, err
 	}
-	_, err = syncNonceScript.Do(redis_conn, n.NoncesHash, strings.ToLower(addr.Hex()), nonce)
+	code, err := redis.Int(syncNonceScript.Do(redis_conn, n.NoncesHash, strings.ToLower(addr.Hex()), nonce, time.Now().Unix()))
+	if err != nil {
+		return 0, err
+	}
+	if code == -1 {
+		return 0, ErrOtherHoldNonce
+	}
 	return nonce, err
 }
 
