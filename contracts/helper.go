@@ -144,6 +144,10 @@ func (b *TxOptsBuilder) BuildNonce(nonce *big.Int) *TxOptsBuilder {
 	return b
 }
 
+func (b *TxOptsBuilder) PeekFrom() common.Address {
+	return b.opts.From
+}
+
 func (b *TxOptsBuilder) BuildSuggestGasPrice(conn *ethclient.Client) *TxOptsBuilder {
 	var err error
 	b.opts.GasPrice, err = conn.SuggestGasPrice(context.TODO())
