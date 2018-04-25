@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -15,6 +16,7 @@ import (
 	"math/big"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var regFrom = regexp.MustCompile(`From:\s+([^\s]+)`)
@@ -183,4 +185,34 @@ func (b *TxOptsBuilder) BuildGasLimit(conn *ethclient.Client, contract_addr comm
 		b.opts.GasLimit = limit
 	}
 	return b
+}
+
+func WaitTxDone(conn *ethclient.Client, txhash common.Hash, timeout ...time.Duration) (bool, error) {
+	var timeoutDur time.Duration
+	if len(timeout) > 0 {
+		timeoutDur = timeout[0]
+	} else {
+		timeoutDur = time.Minute * 30
+	}
+	sleepSec := 3 * time.Second
+	if sleepSec > timeoutDur {
+		sleepSec = timeoutDur
+	}
+
+	timeoutCh := time.After(timeoutDur)
+	for {
+		rep, err := conn.TransactionReceipt(context.Background(), txhash)
+		if err != nil {
+			if err != ethereum.NotFound {
+				return false, err
+			}
+		} else {
+			return rep.Status == types.ReceiptStatusSuccessful, nil
+		}
+		select {
+		case <-timeoutCh:
+			return false, errors.New("wait timeout")
+		case <-time.After(sleepSec):
+		}
+	}
 }
