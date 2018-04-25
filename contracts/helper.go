@@ -187,7 +187,7 @@ func (b *TxOptsBuilder) BuildGasLimit(conn *ethclient.Client, contract_addr comm
 	return b
 }
 
-func WaitTxDone(conn *ethclient.Client, txhash common.Hash, timeout ...time.Duration) (bool, error) {
+func WaitTxDone(conn *ethclient.Client, txhash common.Hash, timeout ...time.Duration) error {
 	var timeoutDur time.Duration
 	if len(timeout) > 0 {
 		timeoutDur = timeout[0]
@@ -204,14 +204,18 @@ func WaitTxDone(conn *ethclient.Client, txhash common.Hash, timeout ...time.Dura
 		rep, err := conn.TransactionReceipt(context.Background(), txhash)
 		if err != nil {
 			if err != ethereum.NotFound {
-				return false, err
+				return err
 			}
 		} else {
-			return rep.Status == types.ReceiptStatusSuccessful, nil
+			if rep.Status == types.ReceiptStatusSuccessful {
+				return nil
+			} else {
+				return errors.New("tx failed")
+			}
 		}
 		select {
 		case <-timeoutCh:
-			return false, errors.New("wait timeout")
+			return errors.New("wait timeout")
 		case <-time.After(sleepSec):
 		}
 	}
