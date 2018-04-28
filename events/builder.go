@@ -64,7 +64,7 @@ func (b *Builder) SetFrom(f uint64) *Builder {
 	return b
 }
 
-func (b *Builder) BuildAndRun(dataCh chan<- Event, errChan chan<- error) (*redo.Recipet, error) {
+func (b *Builder) BuildAndRun(dataCh chan<- Event, errChan chan<- error, intervals ...time.Duration) (*redo.Recipet, error) {
 	b.es.DataChan, b.es.ErrChan = dataCh, errChan
 	if b.es.DataChan == nil {
 		return nil, errors.New("data channel should not be empty")
@@ -85,6 +85,9 @@ func (b *Builder) BuildAndRun(dataCh chan<- Event, errChan chan<- error) (*redo.
 	}
 	var recipet *redo.Recipet
 	interval := time.Second * 3
+	if len(intervals) > 0 {
+		interval = intervals[0]
+	}
 	if b.es.GracefullExit {
 		recipet = redo.PerformSafe(b.es.scan, interval)
 	} else {
