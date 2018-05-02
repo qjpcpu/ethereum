@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package bind_test
+package mbind_test
 
 import (
 	"context"
@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/qjpcpu/ethereum/abi/bind"
-	"github.com/qjpcpu/ethereum/abi/bind/backends"
+	bind "github.com/qjpcpu/ethereum/mabi"
+	"github.com/qjpcpu/ethereum/mabi/mbind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"

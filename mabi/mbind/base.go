@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package bind
+package mbind
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/qjpcpu/ethereum/abi"
+	abi "github.com/qjpcpu/ethereum/mabi"
 )
 
 // SignerFn is a signer function callback when a contract requires a method to

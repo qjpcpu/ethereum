@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package bind
+package mbind
 
 import (
 	"errors"
@@ -24,7 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/qjpcpu/ethereum/abi"
+	abi "github.com/qjpcpu/ethereum/mabi"
 )
 
 // makeTopics converts a filter query argument list into a filter topic set.

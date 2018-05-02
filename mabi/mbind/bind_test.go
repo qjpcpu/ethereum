@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package bind
+package mbind
 
 import (
 	"fmt"
@@ -778,7 +778,7 @@ func TestBindings(t *testing.T) {
 			t.Fatalf("test %d: failed to write binding: %v", i, err)
 		}
 		// Generate the test file with the injected test code
-		code := fmt.Sprintf("package bindtest\nimport \"testing\"\nfunc Test%s(t *testing.T){\n%s\n}", tt.name, tt.tester)
+		code := fmt.Sprintf("package mbindtest\nimport \"testing\"\nfunc Test%s(t *testing.T){\n%s\n}", tt.name, tt.tester)
 		blob, err := imports.Process("", []byte(code), nil)
 		if err != nil {
 			t.Fatalf("test %d: failed to generate tests: %v", i, err)

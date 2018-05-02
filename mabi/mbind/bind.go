@@ -18,7 +18,7 @@
 //
 // Detailed usage document and tutorial available on the go-ethereum Wiki page:
 // https://github.com/ethereum/go-ethereum/wiki/Native-DApps:-Go-bindings-to-Ethereum-contracts
-package bind
+package mbind
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/qjpcpu/ethereum/abi"
+	abi "github.com/qjpcpu/ethereum/mabi"
 	"golang.org/x/tools/imports"
 )
 

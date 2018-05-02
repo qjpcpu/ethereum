@@ -1,4 +1,4 @@
-package abi
+package mabi
 
 import (
 	"encoding/json"

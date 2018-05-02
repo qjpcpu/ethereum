@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package bind
+package mbind
 
-import "github.com/qjpcpu/ethereum/abi"
+import abi "github.com/qjpcpu/ethereum/mabi"
 
 // tmplData is the data structure required to fill the binding template.
 type tmplData struct {
