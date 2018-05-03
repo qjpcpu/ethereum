@@ -152,7 +152,7 @@ func (es *eventScanner) sendData(evt Event) {
 func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 	newest_bn, err := es.NewestBlockNumber()
 	if err != nil {
-		es.sendErr(err)
+		es.sendErr(fmt.Errorf("query newest block number fail:%v, will retry later", err))
 		return
 	}
 	if es.From == 0 {
