@@ -184,7 +184,7 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 	}
 	logs, err := es.conn.FilterLogs(context.Background(), fq)
 	if err != nil {
-		es.sendErr(err)
+		es.sendErr(fmt.Errorf("filter log(%v,%v) err:%v, will retry later", es.From, to_bn, err))
 		return
 	}
 	for _, lg := range logs {
