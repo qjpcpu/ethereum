@@ -191,7 +191,7 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 		evt := abi.NewJSONObj()
 		name, err := es.bc.UnpackMatchedLog(evt, lg)
 		if err != nil {
-			es.sendErr(err)
+			es.sendErr(fmt.Errorf("unpack %s log in tx(%s) fail:%v,abadon", name, lg.TxHash.Hex(), err))
 			continue
 		}
 		es.sendData(Event{
