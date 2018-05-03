@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"errors"
+	"fmt"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -20,6 +21,17 @@ type Event struct {
 	Address     common.Address
 	Name        string
 	Data        abi.JSONObj
+}
+
+func (evt Event) String() string {
+	return fmt.Sprintf(
+		`block: %v,tx: %s,address: %s,event: %s,data: %s`,
+		evt.BlockNumber,
+		evt.TxHash.Hex(),
+		evt.Address.Hex(),
+		evt.Name,
+		evt.Data.String(),
+	)
 }
 
 type Builder struct {
