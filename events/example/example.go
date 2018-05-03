@@ -14,14 +14,13 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	dataCh, errCh, progressCh := make(chan events.Event, 1000), make(chan error, 1), make(chan events.BlockRange, 1)
+	dataCh, errCh := make(chan events.Event, 1000), make(chan error, 1)
 	b := events.NewScanBuilder()
 	rep, err := b.SetClient(conn).
 		SetEvents("Pregnant").
 		SetContract(common.HexToAddress(`0x06012c8cf97BEaD5deAe237070F9587f8E7A266d`)).
 		SetABI(abi_text).
 		SetFrom(5547829).
-		SetProgressChan(progressCh).
 		SetGracefullExit(true).
 		BuildAndRun(dataCh, errCh)
 	if err != nil {
@@ -36,8 +35,6 @@ func main() {
 				fmt.Printf("%s\n", data.String())
 			case err1 := <-errCh:
 				fmt.Println("error:", err1)
-			case progress := <-progressCh:
-				fmt.Printf("Progress:%+v\n", progress)
 			case <-done:
 				fmt.Println("EXIT")
 				return

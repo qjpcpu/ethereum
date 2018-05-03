@@ -23,7 +23,7 @@ type Event struct {
 	Data        abi.JSONObj
 }
 
-type BlockRange struct {
+type Progress struct {
 	From uint64
 	To   uint64
 }
@@ -80,7 +80,7 @@ func (b *Builder) SetFrom(f uint64) *Builder {
 	return b
 }
 
-func (b *Builder) SetProgressChan(pc chan<- BlockRange) *Builder {
+func (b *Builder) SetProgressChan(pc chan<- Progress) *Builder {
 	b.es.ProgressChan = pc
 	return b
 }
@@ -124,7 +124,7 @@ type eventScanner struct {
 	From          uint64
 	DataChan      chan<- Event
 	ErrChan       chan<- error
-	ProgressChan  chan<- BlockRange
+	ProgressChan  chan<- Progress
 	GracefullExit bool
 	bc            *bind.BoundContract
 }
@@ -180,7 +180,7 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 		fq.Addresses = append(fq.Addresses, es.Contract)
 	}
 	if es.ProgressChan != nil {
-		es.ProgressChan <- BlockRange{From: es.From, To: to_bn}
+		es.ProgressChan <- Progress{From: es.From, To: to_bn}
 	}
 	logs, err := es.conn.FilterLogs(context.Background(), fq)
 	if err != nil {
