@@ -23,6 +23,11 @@ type Event struct {
 	Data        abi.JSONObj
 }
 
+type BlockRange struct {
+	From uint64
+	To   uint64
+}
+
 func (evt Event) String() string {
 	return fmt.Sprintf(
 		`block: %v,tx: %s,address: %s,event: %s,data: %s`,
@@ -75,6 +80,11 @@ func (b *Builder) SetFrom(f uint64) *Builder {
 	return b
 }
 
+func (b *Builder) SetProgressChan(pc chan<- BlockRange) *Builder {
+	b.es.ProgressChan = pc
+	return b
+}
+
 func (b *Builder) BuildAndRun(dataCh chan<- Event, errChan chan<- error, intervals ...time.Duration) (*redo.Recipet, error) {
 	b.es.DataChan, b.es.ErrChan = dataCh, errChan
 	if b.es.DataChan == nil {
@@ -114,6 +124,7 @@ type eventScanner struct {
 	From          uint64
 	DataChan      chan<- Event
 	ErrChan       chan<- error
+	ProgressChan  chan<- BlockRange
 	GracefullExit bool
 	bc            *bind.BoundContract
 }
@@ -167,6 +178,9 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 	}
 	if es.Contract != (common.Address{}) {
 		fq.Addresses = append(fq.Addresses, es.Contract)
+	}
+	if es.ProgressChan != nil {
+		es.ProgressChan <- BlockRange{From: es.From, To: to_bn}
 	}
 	logs, err := es.conn.FilterLogs(context.Background(), fq)
 	if err != nil {
