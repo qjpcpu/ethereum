@@ -182,9 +182,6 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 	if es.Contract != (common.Address{}) {
 		fq.Addresses = append(fq.Addresses, es.Contract)
 	}
-	if es.ProgressChan != nil {
-		es.ProgressChan <- Progress{From: es.From, To: to_bn}
-	}
 	logs, err := es.conn.FilterLogs(context.Background(), fq)
 	if err != nil {
 		es.sendErr(fmt.Errorf("filter log(%v,%v) err:%v, will retry later", es.From, to_bn, err))
@@ -204,6 +201,9 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 			Name:        name,
 			Data:        evt,
 		})
+	}
+	if es.ProgressChan != nil {
+		es.ProgressChan <- Progress{From: es.From, To: to_bn}
 	}
 	if len(logs) > 0 {
 		ctx.StartNextRightNow()
