@@ -75,6 +75,11 @@ func (b *Builder) SetABI(abi_str string) *Builder {
 	return b
 }
 
+func (b *Builder) SetBlockMargin(margin uint64) *Builder {
+	b.es.marginBlock = margin
+	return b
+}
+
 func (b *Builder) SetFrom(f uint64) *Builder {
 	b.es.From = f
 	return b
@@ -126,6 +131,7 @@ type eventScanner struct {
 	ErrChan       chan<- error
 	ProgressChan  chan<- Progress
 	GracefullExit bool
+	marginBlock   uint64
 	bc            *bind.BoundContract
 }
 
@@ -134,7 +140,7 @@ func (es *eventScanner) NewestBlockNumber() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return block.NumberU64() - 1, nil
+	return block.NumberU64() - es.marginBlock, nil
 }
 
 func (es *eventScanner) sendErr(err error) {
