@@ -14,12 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"math/big"
-	"regexp"
 	"strings"
 	"time"
 )
-
-var regFrom = regexp.MustCompile(`From:\s+([^\s]+)`)
 
 type TxOptsBuilder struct {
 	opts *bind.TransactOpts
@@ -30,13 +27,48 @@ type TransactionWithExtra struct {
 	*types.Transaction
 }
 
-func (tx *TransactionWithExtra) From() *common.Address {
-	arr := regFrom.FindStringSubmatch(tx.Transaction.String())
-	if len(arr) == 2 {
-		addr := common.HexToAddress(arr[1])
-		return &addr
+func NewTxExtra(tx *types.Transaction) *TransactionWithExtra {
+	return &TransactionWithExtra{Transaction: tx}
+}
+
+func (tx *TransactionWithExtra) From() common.Address {
+	getSigner := func(trans *types.Transaction) types.Signer {
+		v, _, _ := trans.RawSignatureValues()
+		var isProtectedV bool
+		for loop := true; loop; loop = false {
+			if v.BitLen() <= 8 {
+				vv := v.Uint64()
+				isProtectedV = vv != 27 && vv != 28
+				break
+			}
+			isProtectedV = true
+		}
+		if v.Sign() != 0 && isProtectedV {
+			var chainId *big.Int
+			for loop := true; loop; loop = false {
+				if v.BitLen() <= 64 {
+					vv := v.Uint64()
+					if vv == 27 || vv == 28 {
+						chainId = new(big.Int)
+						break
+					}
+					chainId = new(big.Int).SetUint64((vv - 35) / 2)
+					break
+				}
+				nv := new(big.Int).Sub(v, big.NewInt(35))
+				chainId = nv.Div(nv, big.NewInt(2))
+			}
+			return types.NewEIP155Signer(chainId)
+		} else {
+			return types.HomesteadSigner{}
+		}
 	}
-	return nil
+	signer := getSigner(tx.Transaction)
+	from, err := types.Sender(signer, tx.Transaction)
+	if err != nil {
+		return common.Address{}
+	}
+	return from
 }
 
 func (tx *TransactionWithExtra) IsSuccess(conn *ethclient.Client) (bool, error) {
@@ -49,7 +81,7 @@ func (tx *TransactionWithExtra) IsSuccess(conn *ethclient.Client) (bool, error) 
 
 // 对于合约创建交易,获取该交易创建的合约地址
 func (tx *TransactionWithExtra) ContractAddress() *common.Address {
-	address := crypto.CreateAddress(*tx.From(), tx.Nonce())
+	address := crypto.CreateAddress(tx.From(), tx.Nonce())
 	return &address
 }
 

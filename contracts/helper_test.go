@@ -22,20 +22,17 @@ func TestIsContract(t *testing.T) {
 	}
 }
 func TestFrom(t *testing.T) {
-	addr := `0x8abfd268012d2113f31509bdd6e62d519c2ee621164d7687dc6ceb3eac8d55ec`
-	conn, err := ethclient.Dial("https://api.myetherapi.com/eth")
+	addr := `0xb26be45fc0c75a99f933042195cb579075a2d0ffbe1d196f55a9762b3defb2f9`
+	conn, err := ethclient.Dial("http://localhost:18545")
 	if err != nil {
 		t.Fatalf("Failed to connect to the Ethereum client: %v", err)
 	}
 	tx, _, err := conn.TransactionByHash(context.Background(), common.HexToHash(addr))
-	t.Log(tx)
-	txe := TransactionWithExtra{tx}
-	if from := txe.From(); from.Hex() != common.HexToAddress("0xc5cf6410a3f2eda2b31ea73a4fd9b3e80d035fe1").Hex() {
-		t.Fatalf("get from fail")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if contractAddr := txe.ContractAddress(); contractAddr.Hex() != common.HexToAddress("0x93e682107d1e9defb0b5ee701c71707a4b2e46bc").Hex() {
-		t.Fatalf("get contract addr fail")
-	}
+	t.Log(err, tx)
+	t.Log(NewTxExtra(tx).From().Hex())
 }
 
 func TestStatus(t *testing.T) {
