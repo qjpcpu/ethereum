@@ -116,3 +116,13 @@ func TestX(t *testing.T) {
 	// t.Log(new(big.Int).SetBytes(l1.Data[64:96]).String())
 	// t.Log(new(big.Int).SetBytes(l1.Data[96:128]).String())
 }
+
+func TestWaitTx(t *testing.T) {
+	addr := `0x33c5a13303945926cff78678803c499fa2b13410ec150b5feccc423987be17b4` // EOS contract
+	conn, err := ethclient.Dial("http://10.140.0.4:8545")
+	if err != nil {
+		t.Fatalf("Failed to connect to the Ethereum client: %v", err)
+	}
+	rep, err := conn.TransactionReceipt(context.Background(), common.HexToHash(addr))
+	t.Log(rep, err)
+}
