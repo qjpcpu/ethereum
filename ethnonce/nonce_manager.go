@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/garyburd/redigo/redis"
 	"strings"
@@ -173,19 +174,19 @@ func (n NonceManager) CommitNonce(redis_conn redis.Conn, addr common.Address, no
 	}
 }
 
-func (n NonceManager) GiveNonceForTx(eth_conn *ethclient.Client, redis_conn redis.Conn, addr common.Address, txJob func(nonce uint64) error) error {
+func (n NonceManager) GiveNonceForTx(eth_conn *ethclient.Client, redis_conn redis.Conn, addr common.Address, txJob func(nonce uint64) (*types.Transaction, error)) (*types.Transaction, error) {
 	nonce, err := n.MustGiveNonce(redis_conn, addr)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err = txJob(nonce); err != nil {
+	if tx, err := txJob(nonce); err != nil {
 		n.CommitNonce(redis_conn, addr, nonce, false)
 		if err == core.ErrNonceTooLow {
 			n.SyncNonce(redis_conn, addr, eth_conn)
 		}
-		return err
+		return nil, err
 	} else {
 		n.CommitNonce(redis_conn, addr, nonce, true)
-		return nil
+		return tx, nil
 	}
 }
