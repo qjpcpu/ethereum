@@ -21,8 +21,23 @@ func TestIsContract(t *testing.T) {
 		t.Fatalf("%s should be contract", addr)
 	}
 }
+
+func TestResend(t *testing.T) {
+	conn, _ := ethclient.Dial("http://localhost:18545")
+	txjson := `{"nonce":"0x9300","gasPrice":"0xb2d05e00","gas":"0x493e0","to":"0x9cf0157976565940962304bb0f5b3aad7b2e13ce","value":"0x0","input":"0xc3bea9af0000000000000000000000000000000000000000000000000000000000000131","v":"0x1c","r":"0x141c08450c5e3c549452ad2ed3aca6126d7e41a77e890e5dfd37bf3d3636e5ca","s":"0x44e53e136790cf62d4442ac119ef24653ec3b0ac35edef3027d8f9b8d760b147","hash":"0x1f28de5cb3280b8b8434a54379c7d175e4ca4569f5fbb5234fe0555c303a70a4"}`
+	tx := new(types.Transaction)
+	tx.UnmarshalJSON([]byte(txjson))
+	t.Log(tx)
+	signerFunc := SignerFuncOf("json", "pwd")
+	ntx, err := ResendTransaction(conn, tx, signerFunc, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(ntx)
+}
+
 func TestFrom(t *testing.T) {
-	addr := `0xb26be45fc0c75a99f933042195cb579075a2d0ffbe1d196f55a9762b3defb2f9`
+	addr := `0x1f28de5cb3280b8b8434a54379c7d175e4ca4569f5fbb5234fe0555c303a70a4`
 	conn, err := ethclient.Dial("http://localhost:18545")
 	if err != nil {
 		t.Fatalf("Failed to connect to the Ethereum client: %v", err)
