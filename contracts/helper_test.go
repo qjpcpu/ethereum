@@ -33,6 +33,14 @@ func TestFrom(t *testing.T) {
 	}
 	t.Log(err, tx)
 	t.Log(NewTxExtra(tx).From().Hex())
+	js, err := tx.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(string(js))
+	ntx := new(types.Transaction)
+	ntx.UnmarshalJSON(js)
+	t.Log(ntx)
 }
 
 func TestStatus(t *testing.T) {
