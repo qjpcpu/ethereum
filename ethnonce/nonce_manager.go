@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/garyburd/redigo/redis"
+	"github.com/qjpcpu/log"
 	"strings"
 	"time"
 )
@@ -181,8 +181,9 @@ func (n NonceManager) GiveNonceForTx(eth_conn *ethclient.Client, redis_conn redi
 	}
 	if tx, err := txJob(nonce); err != nil {
 		n.CommitNonce(redis_conn, addr, nonce, false)
-		if err == core.ErrNonceTooLow {
-			n.SyncNonce(redis_conn, addr, eth_conn)
+		if strings.Contains(err.Error(), "nonce too low") {
+			new_nonce, _ := n.SyncNonce(redis_conn, addr, eth_conn)
+			log.Debugf("nonce:%d of %s is too low, auto sync to %d", nonce, addr.Hex(), new_nonce)
 		}
 		return nil, err
 	} else {
