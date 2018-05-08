@@ -100,17 +100,19 @@ return 0
 
 type NonceManager struct {
 	NoncesHash string
+	pool       *redis.Pool
+	ethConn    *ethclient.Client
 }
 
-func NewNonceManager(nonce_name string) NonceManager {
-	return NonceManager{NoncesHash: nonce_name}
+func NewNonceManager(ethConn *ethclient.Client, storage *redis.Pool, nonce_name string) *NonceManager {
+	return &NonceManager{NoncesHash: nonce_name, pool: storage, ethConn: ethConn}
 }
 
-func (n NonceManager) MustGiveNonce(conn redis.Conn, addr common.Address, ethConn ...*ethclient.Client) (uint64, error) {
+func (n *NonceManager) MustGiveNonce(addr common.Address) (uint64, error) {
 	var code uint64
 	var err error
 	for i := 0; i < 600; i++ {
-		code, err = n.GiveNonce(conn, addr, ethConn...)
+		code, err = n.GiveNonce(addr)
 		if err == nil || err == ErrNotInitAddress {
 			break
 		}
@@ -120,20 +122,21 @@ func (n NonceManager) MustGiveNonce(conn redis.Conn, addr common.Address, ethCon
 	return code, err
 }
 
-func (n NonceManager) PeekNonce(conn redis.Conn, addr common.Address) uint64 {
+func (n *NonceManager) PeekNonce(addr common.Address) uint64 {
+	conn := n.pool.Get()
+	defer conn.Close()
 	num, _ := redis.Uint64(conn.Do("HGET", n.NoncesHash, strings.ToLower(addr.Hex())))
 	return num
 }
 
-func (n NonceManager) GiveNonce(conn redis.Conn, addr common.Address, ethConn ...*ethclient.Client) (uint64, error) {
+func (n *NonceManager) GiveNonce(addr common.Address) (uint64, error) {
+	conn := n.pool.Get()
+	defer conn.Close()
 	address := strings.ToLower(addr.Hex())
 	now := time.Now()
 	errcode, err := redis.Int64(giveNonceScript.Do(conn, n.NoncesHash, address, now.Unix()))
 	if err != nil && err != redis.ErrNil {
 		return 0, err
-	}
-	if len(ethConn) > 0 && ethConn[0] != nil && errcode == -1 {
-		return n.SyncNonce(conn, addr, ethConn[0])
 	}
 	switch errcode {
 	case -1:
@@ -145,8 +148,10 @@ func (n NonceManager) GiveNonce(conn redis.Conn, addr common.Address, ethConn ..
 	}
 }
 
-func (n NonceManager) SyncNonce(redis_conn redis.Conn, addr common.Address, conn *ethclient.Client) (uint64, error) {
-	nonce, err := conn.PendingNonceAt(context.Background(), addr)
+func (n *NonceManager) SyncNonce(addr common.Address) (uint64, error) {
+	redis_conn := n.pool.Get()
+	defer redis_conn.Close()
+	nonce, err := n.ethConn.PendingNonceAt(context.Background(), addr)
 	if err != nil {
 		return 0, err
 	}
@@ -160,7 +165,9 @@ func (n NonceManager) SyncNonce(redis_conn redis.Conn, addr common.Address, conn
 	return nonce, err
 }
 
-func (n NonceManager) CommitNonce(redis_conn redis.Conn, addr common.Address, nonce_number uint64, success bool) error {
+func (n *NonceManager) CommitNonce(addr common.Address, nonce_number uint64, success bool) error {
+	redis_conn := n.pool.Get()
+	defer redis_conn.Close()
 	ok := 0
 	if !success {
 		ok = 1
@@ -179,20 +186,20 @@ func (n NonceManager) CommitNonce(redis_conn redis.Conn, addr common.Address, no
 	}
 }
 
-func (n NonceManager) GiveNonceForTx(eth_conn *ethclient.Client, redis_conn redis.Conn, addr common.Address, txJob func(nonce uint64) (*types.Transaction, error)) (*types.Transaction, error) {
-	nonce, err := n.MustGiveNonce(redis_conn, addr)
+func (n *NonceManager) GiveNonceForTx(addr common.Address, txJob func(nonce uint64) (*types.Transaction, error)) (*types.Transaction, error) {
+	nonce, err := n.MustGiveNonce(addr)
 	if err != nil {
 		return nil, err
 	}
 	if tx, err := txJob(nonce); err != nil {
-		n.CommitNonce(redis_conn, addr, nonce, false)
+		n.CommitNonce(addr, nonce, false)
 		if strings.Contains(err.Error(), "nonce too low") {
-			new_nonce, _ := n.SyncNonce(redis_conn, addr, eth_conn)
+			new_nonce, _ := n.SyncNonce(addr)
 			log.Debugf("nonce:%d of %s is too low, auto sync to %d", nonce, addr.Hex(), new_nonce)
 		}
 		return nil, err
 	} else {
-		n.CommitNonce(redis_conn, addr, nonce, true)
+		n.CommitNonce(addr, nonce, true)
 		return tx, nil
 	}
 }
