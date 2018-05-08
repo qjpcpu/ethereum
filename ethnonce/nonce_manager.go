@@ -120,6 +120,11 @@ func (n NonceManager) MustGiveNonce(conn redis.Conn, addr common.Address, ethCon
 	return code, err
 }
 
+func (n NonceManager) PeekNonce(conn redis.Conn, addr common.Address) uint64 {
+	num, _ := redis.Uint64(conn.Do("HGET", n.NoncesHash, strings.ToLower(addr.Hex())))
+	return num
+}
+
 func (n NonceManager) GiveNonce(conn redis.Conn, addr common.Address, ethConn ...*ethclient.Client) (uint64, error) {
 	address := strings.ToLower(addr.Hex())
 	now := time.Now()
