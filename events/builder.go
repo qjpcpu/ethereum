@@ -211,7 +211,7 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 	if es.ProgressChan != nil {
 		es.ProgressChan <- Progress{From: es.From, To: to_bn}
 	}
-	if len(logs) > 0 {
+	if to_bn < newest_bn {
 		ctx.StartNextRightNow()
 	}
 	es.From = to_bn + 1
