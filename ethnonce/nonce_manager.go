@@ -193,9 +193,9 @@ func (n *NonceManager) GiveNonceForTx(addr common.Address, txJob func(nonce uint
 	}
 	if tx, err := txJob(nonce); err != nil {
 		n.CommitNonce(addr, nonce, false)
-		if strings.Contains(err.Error(), "nonce too low") {
+		if strings.Contains(err.Error(), "nonce too low") || strings.Contains(err.Error(), "nonce too high") {
 			new_nonce, _ := n.SyncNonce(addr)
-			log.Debugf("nonce:%d of %s is too low, auto sync to %d", nonce, addr.Hex(), new_nonce)
+			log.Debugf("nonce:%d of %s is [%v], auto sync to %d", nonce, addr.Hex(), err, new_nonce)
 		}
 		return nil, err
 	} else {
