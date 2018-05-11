@@ -69,7 +69,7 @@ func TransferETH(conn *ethclient.Client, from, to common.Address, amount *big.In
 		}
 		gasPrice = gp
 	}
-	rawTx := types.NewTransaction(nonce, from, amount, 21000, gasPrice, nil)
+	rawTx := types.NewTransaction(nonce, to, amount, 21000, gasPrice, nil)
 	signedTx, err := signerFunc(types.HomesteadSigner{}, from, rawTx)
 	if err != nil {
 		return nil, err
