@@ -53,3 +53,29 @@ func ResendTransaction(conn *ethclient.Client, tx *types.Transaction, signerFunc
 	}
 	return signedTx, err
 }
+
+func TransferETH(conn *ethclient.Client, from, to common.Address, amount *big.Int, signerFunc bind.SignerFn, nonce uint64, gasPrice *big.Int) (*types.Transaction, error) {
+	if nonce == 0 {
+		nonceInt, err := conn.PendingNonceAt(context.Background(), from)
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve account nonce: %v", err)
+		}
+		nonce = nonceInt
+	}
+	if gasPrice == nil {
+		gp, err := conn.SuggestGasPrice(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve gas price: %v", err)
+		}
+		gasPrice = gp
+	}
+	rawTx := types.NewTransaction(nonce, from, amount, 21000, gasPrice, nil)
+	signedTx, err := signerFunc(types.HomesteadSigner{}, from, rawTx)
+	if err != nil {
+		return nil, err
+	}
+	if err = conn.SendTransaction(context.Background(), signedTx); err != nil {
+		return nil, err
+	}
+	return signedTx, err
+}
