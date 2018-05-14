@@ -10,17 +10,25 @@ import (
 	"io"
 )
 
-func NewKey(passphrase string) (common.Address, []byte, error) {
+func NewLightKey(passphrase string) (common.Address, []byte, error) {
 	pk, err := newKey(crand.Reader)
 	if err != nil {
 		return common.Address{}, nil, err
 	}
-	return ImportPrivateKey(pk, passphrase)
+	return ImportPrivateKey(pk, passphrase, keystore.LightScryptN, keystore.LightScryptP)
 }
 
-func ImportPrivateKey(priv_key *ecdsa.PrivateKey, passphrase string) (common.Address, []byte, error) {
+func NewStandardKey(passphrase string) (common.Address, []byte, error) {
+	pk, err := newKey(crand.Reader)
+	if err != nil {
+		return common.Address{}, nil, err
+	}
+	return ImportPrivateKey(pk, passphrase, keystore.StandardScryptN, keystore.StandardScryptP)
+}
+
+func ImportPrivateKey(priv_key *ecdsa.PrivateKey, passphrase string, scryptN, scryptP int) (common.Address, []byte, error) {
 	nkey := newKeyFromECDSA(priv_key)
-	keyjson, err := keystore.EncryptKey(nkey, passphrase, keystore.LightScryptN, keystore.LightScryptP)
+	keyjson, err := keystore.EncryptKey(nkey, passphrase, scryptN, scryptP)
 	if err != nil {
 		return common.Address{}, nil, err
 	}
