@@ -74,7 +74,7 @@ func TransferETH(conn *ethclient.Client, from, to common.Address, amount *big.In
 	var gasLimit uint64 = 21000
 	var data []byte
 	if len(notes) > 0 && notes[0] != "" {
-		data = packString(notes[0])
+		data = PackString(notes[0])
 		msg := ethereum.CallMsg{From: from, To: &to, Value: amount, Data: data}
 		var err error
 		gasLimit, err = conn.EstimateGas(context.TODO(), msg)
@@ -93,10 +93,14 @@ func TransferETH(conn *ethclient.Client, from, to common.Address, amount *big.In
 	return signedTx, err
 }
 
-func packString(str string) []byte {
+func PackString(str string) []byte {
 	l := len(str)
 	return append(
 		math.PaddedBigBytes(math.U256(big.NewInt(int64(l))), 32),
 		common.RightPadBytes([]byte(str), (l+31)/32*32)...,
 	)
+}
+
+func PackNum(num *big.Int) []byte {
+	return math.PaddedBigBytes(math.U256(new(big.Int).Set(num)), 32)
 }
