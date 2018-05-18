@@ -69,6 +69,10 @@ func PackNum(num *big.Int) []byte {
 	return math.PaddedBigBytes(math.U256(new(big.Int).Set(num)), 32)
 }
 
+func PackAddress(addr common.Address) []byte {
+	return common.LeftPadBytes(addr.Bytes(), 32)
+}
+
 func ParseABI(rawjson string) (abi.ABI, error) {
 	return abi.JSON(strings.NewReader(rawjson))
 }
