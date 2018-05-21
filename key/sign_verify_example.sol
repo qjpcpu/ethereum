@@ -16,7 +16,7 @@ func TestSignature(t *testing.T) {
     if err != nil {
         t.Fatal(err)
     }
-    msg := crypto.Keccak256(contracts.PackNum(big.NewInt(522)), contracts.PackNum(big.NewInt(1000)), contracts.PackNum(big.NewInt(0)))
+    msg := crypto.Keccak256(common.HexToAddress("0xaaa").Bytes(),contracts.PackNum(big.NewInt(522)), contracts.PackNum(big.NewInt(1000)), contracts.PackNum(big.NewInt(0)))
     sign, err := Sign(pk, msg)
     if err != nil {
         t.Fatal(err)
@@ -40,7 +40,7 @@ contract SignVerifyExample {
     function func_need_verify_sign(uint256 amount1, uint256 amount2, bytes sig) public returns(bool) {
 
         // This recreates the message that was signed on the client.
-        bytes32 message = prefixed(keccak256(amount1, amount2, userOpCounter[msg.sender]));
+        bytes32 message = prefixed(keccak256(msg.sender, amount1, amount2, userOpCounter[msg.sender]));
 
         require(recoverSigner(message, sig) == owner);
         userOpCounter[msg.sender]++;
