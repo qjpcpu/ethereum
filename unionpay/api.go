@@ -3,7 +3,6 @@ package unionpay
 import (
 	"errors"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/qjpcpu/ethereum/contracts"
 	"github.com/qjpcpu/ethereum/key"
@@ -31,22 +30,34 @@ func PackPayParams(from common.Address, to common.Address, amount *big.Int, cutP
 	return msg, nil
 }
 
-func SignPayParams(keyjson, keypwd string, packedParams []byte) (string, error) {
+func SignPayParams(keyjson, keypwd string, packedParams []byte) ([]byte, error) {
 	_, pk, err := key.ExportPrivateKey([]byte(keyjson), keypwd)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	msg, err := key.Sign(pk, packedParams)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return hexutil.Encode(msg), nil
+	return msg, nil
 }
 
-func PackAndSignPayParams(keyjson, keypwd string, from common.Address, to common.Address, amount *big.Int, cutPercentage int, receiptId *big.Int, extra *big.Int) (string, error) {
+func PackAndSignPayParams(keyjson, keypwd string, from common.Address, to common.Address, amount *big.Int, cutPercentage int, receiptId *big.Int, extra *big.Int) ([]byte, error) {
 	data, err := PackPayParams(from, to, amount, cutPercentage, receiptId, extra)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return SignPayParams(keyjson, keypwd, data)
+}
+
+func MakeUnionPayTxData(platform_keyjson, platform_keypwd string, from common.Address, to common.Address, amount *big.Int, cutPercentage int, receiptId *big.Int, extra *big.Int) ([]byte, error) {
+	sign, err := PackAndSignPayParams(platform_keyjson, platform_keypwd, from, to, amount, cutPercentage, receiptId, extra)
+	if err != nil {
+		return nil, err
+	}
+	_abi, err := contracts.ParseABI(UnionPayABI)
+	if err != nil {
+		return nil, err
+	}
+	return contracts.PackArguments(_abi, "payCash", receiptId, big.NewInt(int64(cutPercentage)), to, extra, sign)
 }

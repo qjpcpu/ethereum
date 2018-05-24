@@ -3,6 +3,7 @@ package unionpay
 import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/qjpcpu/ethereum/key"
 	"math/big"
 	"testing"
@@ -25,5 +26,10 @@ func TestSignature(t *testing.T) {
 	t.Log("platform:", platform.Hex())
 	t.Log("from:", from.Hex())
 	t.Log("value:", amount.Uint64())
-	t.Logf("payCash(%v,%v,\"%v\",%v,\"%v\")", nonce.Uint64(), cut, to.Hex(), state.Uint64(), sign)
+	t.Logf("payCash(%v,%v,\"%v\",%v,\"%v\")", nonce.Uint64(), cut, to.Hex(), state.Uint64(), hexutil.Encode(sign))
+	data, err := MakeUnionPayTxData(string(keyjson), pwd, from, to, amount, cut, nonce, state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("raw tx data:", hexutil.Encode(data))
 }
