@@ -4,19 +4,19 @@ import "./ownable.sol";
 
 contract UnionPay is Ownable {
     address public platform;
-    mapping(address => mapping(address => uint256)) public userReceipts;
+    mapping(address => mapping(uint256 => uint256)) public userReceipts;
     event UserPay(address _from,address _to,uint256 _amount, uint256 _amountIndeed,uint256 _nonce,uint256 _state);
 
     function payCash(uint256 _nonce,uint256 _feePercentage,address _to,uint256 _state, bytes _sig) payable public returns(bool) {
         require(_feePercentage>=0 && _feePercentage<=100);
         require(_to != address(0));
-        require(_nonce == userReceipts[msg.sender][_to]+1);
+        require(userReceipts[msg.sender][_nonce] == 0);
         require(platform!=address(0));
 
         bytes32 message = prefixed(keccak256(msg.sender, _to, msg.value, _feePercentage,_nonce,_state));
 
         require(recoverSigner(message, _sig) == platform);
-        userReceipts[msg.sender][_to]++;
+        userReceipts[msg.sender][_nonce] = 1;
         
         if (_feePercentage == 0){
             if (msg.value > 0){
