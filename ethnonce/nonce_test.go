@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/garyburd/redigo/redis"
+	"os"
 	"testing"
 	"time"
 )
@@ -35,11 +36,18 @@ func _testinit() *NonceManager {
 	rc := c.Get()
 	rc.Do("DEL", "testhash")
 	rc.Close()
-	return NewNonceManager(conn, c, "testhash")
+	//	return NewNonceManager(conn, "testhash").UseRedisPool(c)
+	return NewNonceManager(conn, "x").UseLeveldb("./ok")
+}
+
+func _testteardown(mgr *NonceManager) {
+	mgr.Close()
+	os.RemoveAll("./ok")
 }
 
 func TestGiveCommit(t *testing.T) {
 	mgr := _testinit()
+	defer _testteardown(mgr)
 	addr := common.HexToAddress(`0xe35f3e2a93322b61e5d8931f806ff38f4a4f4d88`)
 	mgr.SyncNonce(addr)
 	nonce, err := mgr.MustGiveNonce(addr)
@@ -68,6 +76,7 @@ func TestGiveCommit(t *testing.T) {
 
 func TestWrap(t *testing.T) {
 	mgr := _testinit()
+	defer _testteardown(mgr)
 	addr := common.HexToAddress(`0xe35f3e2a93322b61e5d8931f806ff38f4a4f4d88`)
 	_, err := mgr.MustGiveNonce(addr)
 	if err == nil {
