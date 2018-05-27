@@ -1,4 +1,4 @@
-package ethnonce
+package iredis
 
 import (
 	"errors"
@@ -6,12 +6,12 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/garyburd/redigo/redis"
-	"os"
+	"github.com/qjpcpu/ethereum/ethnonce"
 	"testing"
 	"time"
 )
 
-func _testinit() *NonceManager {
+func _testinit() *ethnonce.NonceManager {
 	conn, _ := ethclient.Dial("http://localhost:18545")
 	c := &redis.Pool{
 		MaxIdle:     200,
@@ -36,13 +36,12 @@ func _testinit() *NonceManager {
 	rc := c.Get()
 	rc.Do("DEL", "testhash")
 	rc.Close()
-	//	return NewNonceManager(conn, "testhash").UseRedisPool(c)
-	return NewNonceManager(conn, "x").UseLeveldb("./ok")
+	creator := PrepareRedisPoolManager("testhash", c)
+	return creator.SetEthClient(conn).Build()
 }
 
-func _testteardown(mgr *NonceManager) {
+func _testteardown(mgr *ethnonce.NonceManager) {
 	mgr.Close()
-	os.RemoveAll("./ok")
 }
 
 func TestGiveCommit(t *testing.T) {

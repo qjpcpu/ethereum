@@ -5,7 +5,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/garyburd/redigo/redis"
 	"github.com/qjpcpu/log"
 	"strings"
 	"time"
@@ -16,34 +15,9 @@ var (
 	ErrOtherHoldNonce = errors.New("others hold the nonce")
 )
 
-type nonceCommon struct {
-	NoncesName string
-	ethConn    *ethclient.Client
-}
-
-func NewNonceManager(conn *ethclient.Client, name string) *nonceCommon {
-	return &nonceCommon{
-		NoncesName: name,
-		ethConn:    conn,
-	}
-}
-
-func (b *nonceCommon) UseRedis(conn string, redis_db, passwd string) *NonceManager {
-	return &NonceManager{
-		Impl: newRedisManager(b, conn, redis_db, passwd),
-	}
-}
-
-func (b *nonceCommon) UseRedisPool(pool *redis.Pool) *NonceManager {
-	return &NonceManager{
-		Impl: newRedisPoolManager(b, pool),
-	}
-}
-
-func (b *nonceCommon) UseLeveldb(db_path string) *NonceManager {
-	return &NonceManager{
-		Impl: newLvldbManager(b, db_path),
-	}
+type ManagerCreator interface {
+	SetEthClient(*ethclient.Client) ManagerCreator
+	Build() *NonceManager
 }
 
 type NonceManager struct {

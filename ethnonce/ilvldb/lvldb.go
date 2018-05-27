@@ -1,9 +1,11 @@
-package ethnonce
+package ilvldb
 
 import (
 	"context"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/qjpcpu/ethereum/ethnonce"
 	"github.com/syndtr/goleveldb/leveldb"
 	"strconv"
 	"strings"
@@ -12,20 +14,38 @@ import (
 )
 
 type lvldbManager struct {
-	*nonceCommon
-	db *leveldb.DB
+	filePath string
+	ethConn  *ethclient.Client
+	db       *leveldb.DB
 	*sync.Mutex
 }
 
-func newLvldbManager(nc *nonceCommon, file_path string) *lvldbManager {
+type LvldbManagerCreator struct {
+	mgr *lvldbManager
+}
+
+func (rc *LvldbManagerCreator) SetEthClient(conn *ethclient.Client) ethnonce.ManagerCreator {
+	rc.mgr.ethConn = conn
+	return rc
+}
+
+func (rc *LvldbManagerCreator) Build() *ethnonce.NonceManager {
+	return &ethnonce.NonceManager{
+		Impl: rc.mgr,
+	}
+}
+
+func PrepareLvldbManager(file_path string) ethnonce.ManagerCreator {
 	db, err := leveldb.OpenFile(file_path, nil)
 	if err != nil {
 		panic(err)
 	}
-	return &lvldbManager{
-		nonceCommon: nc,
-		db:          db,
-		Mutex:       new(sync.Mutex),
+	return &LvldbManagerCreator{
+		mgr: &lvldbManager{
+			filePath: file_path,
+			db:       db,
+			Mutex:    new(sync.Mutex),
+		},
 	}
 }
 
@@ -40,9 +60,9 @@ func (n *lvldbManager) GiveNonce(addr common.Address) (uint64, error) {
 	nonce, err := resToNumber(n.db.Get([]byte(addressField(addr)), nil))
 	if err != nil {
 		if err == leveldb.ErrNotFound {
-			return 0, ErrNotInitAddress
+			return 0, ethnonce.ErrNotInitAddress
 		}
-		return 0, ErrOtherHoldNonce
+		return 0, ethnonce.ErrOtherHoldNonce
 	}
 	cmt, _ := resToNumber(n.db.Get([]byte(addressCommitField(addr)), nil))
 	if cmt == 0 {
@@ -54,7 +74,7 @@ func (n *lvldbManager) GiveNonce(addr common.Address) (uint64, error) {
 	}
 	last, _ := resToNumber(n.db.Get([]byte(addressTimestampField(addr)), nil))
 	if time.Unix(int64(last), 0).Add(time.Second * 60).After(time.Now()) {
-		return 0, ErrOtherHoldNonce
+		return 0, ethnonce.ErrOtherHoldNonce
 	}
 	n.db.Put([]byte(addressTimestampField(addr)), numberToString(uint64(time.Now().Unix())), nil)
 	return nonce, nil
@@ -66,7 +86,7 @@ func (n *lvldbManager) SyncNonce(addr common.Address) (uint64, error) {
 	cmt, err1 := resToNumber(n.db.Get([]byte(addressCommitField(addr)), nil))
 	last, err2 := resToNumber(n.db.Get([]byte(addressTimestampField(addr)), nil))
 	if err1 == nil && err2 == nil && cmt != 0 && time.Unix(int64(last), 0).Add(time.Second*60).After(time.Now()) {
-		return 0, ErrOtherHoldNonce
+		return 0, ethnonce.ErrOtherHoldNonce
 	}
 	nonce, err := n.ethConn.PendingNonceAt(context.Background(), addr)
 	if err != nil {
@@ -88,7 +108,7 @@ func (n *lvldbManager) CommitNonce(addr common.Address, nonce_number uint64, suc
 	dbnonce, err := resToNumber(n.db.Get([]byte(addressField(addr)), nil))
 	if err != nil {
 		if err == leveldb.ErrNotFound {
-			return ErrNotInitAddress
+			return ethnonce.ErrNotInitAddress
 		}
 		return err
 	}
@@ -97,7 +117,7 @@ func (n *lvldbManager) CommitNonce(addr common.Address, nonce_number uint64, suc
 		return nil
 	}
 	if dbnonce != nonce_number {
-		return ErrOtherHoldNonce
+		return ethnonce.ErrOtherHoldNonce
 	}
 	batch := new(leveldb.Batch)
 	if success {

@@ -1,9 +1,11 @@
-package ethnonce
+package iredis
 
 import (
 	"context"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/garyburd/redigo/redis"
+	"github.com/qjpcpu/ethereum/ethnonce"
 	"strings"
 	"time"
 )
@@ -92,11 +94,27 @@ return 0
 )
 
 type redisManager struct {
-	*nonceCommon
-	pool *redis.Pool
+	NoncesName string
+	ethConn    *ethclient.Client
+	pool       *redis.Pool
 }
 
-func newRedisManager(nc *nonceCommon, conn string, redis_db, passwd string) *redisManager {
+type RedisManagerCreator struct {
+	mgr *redisManager
+}
+
+func (rc *RedisManagerCreator) SetEthClient(conn *ethclient.Client) ethnonce.ManagerCreator {
+	rc.mgr.ethConn = conn
+	return rc
+}
+
+func (rc *RedisManagerCreator) Build() *ethnonce.NonceManager {
+	return &ethnonce.NonceManager{
+		Impl: rc.mgr,
+	}
+}
+
+func PrepareRedisManager(key string, conn string, redis_db, passwd string) ethnonce.ManagerCreator {
 	pool := &redis.Pool{
 		MaxIdle:     200,
 		MaxActive:   200,
@@ -131,13 +149,15 @@ func newRedisManager(nc *nonceCommon, conn string, redis_db, passwd string) *red
 			return err
 		},
 	}
-	return newRedisPoolManager(nc, pool)
+	return PrepareRedisPoolManager(key, pool)
 }
 
-func newRedisPoolManager(nc *nonceCommon, pool *redis.Pool) *redisManager {
-	return &redisManager{
-		nonceCommon: nc,
-		pool:        pool,
+func PrepareRedisPoolManager(key string, pool *redis.Pool) ethnonce.ManagerCreator {
+	return &RedisManagerCreator{
+		mgr: &redisManager{
+			NoncesName: key,
+			pool:       pool,
+		},
 	}
 }
 
@@ -159,9 +179,9 @@ func (n *redisManager) GiveNonce(addr common.Address) (uint64, error) {
 	}
 	switch errcode {
 	case -1:
-		return 0, ErrNotInitAddress
+		return 0, ethnonce.ErrNotInitAddress
 	case -2:
-		return 0, ErrOtherHoldNonce
+		return 0, ethnonce.ErrOtherHoldNonce
 	default:
 		return uint64(errcode), nil
 	}
@@ -179,7 +199,7 @@ func (n *redisManager) SyncNonce(addr common.Address) (uint64, error) {
 		return 0, err
 	}
 	if code == -1 {
-		return 0, ErrOtherHoldNonce
+		return 0, ethnonce.ErrOtherHoldNonce
 	}
 	return nonce, err
 }
@@ -197,9 +217,9 @@ func (n *redisManager) CommitNonce(addr common.Address, nonce_number uint64, suc
 	}
 	switch code {
 	case -1:
-		return ErrNotInitAddress
+		return ethnonce.ErrNotInitAddress
 	case -2:
-		return ErrOtherHoldNonce
+		return ethnonce.ErrOtherHoldNonce
 	default:
 		return nil
 	}
