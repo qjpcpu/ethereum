@@ -26,6 +26,14 @@ func NewStandardKey(passphrase string) (common.Address, []byte, error) {
 	return ImportPrivateKey(pk, passphrase, keystore.StandardScryptN, keystore.StandardScryptP)
 }
 
+func ImportPrivateKeyLight(priv_key *ecdsa.PrivateKey, passphrase string) (common.Address, []byte, error) {
+	return ImportPrivateKey(priv_key, passphrase, keystore.LightScryptN, keystore.LightScryptP)
+}
+
+func ImportPrivateKeyStandard(priv_key *ecdsa.PrivateKey, passphrase string) (common.Address, []byte, error) {
+	return ImportPrivateKey(priv_key, passphrase, keystore.StandardScryptN, keystore.StandardScryptP)
+}
+
 func ImportPrivateKey(priv_key *ecdsa.PrivateKey, passphrase string, scryptN, scryptP int) (common.Address, []byte, error) {
 	nkey := newKeyFromECDSA(priv_key)
 	keyjson, err := keystore.EncryptKey(nkey, passphrase, scryptN, scryptP)
