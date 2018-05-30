@@ -6,9 +6,14 @@ import (
 	"encoding/hex"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"io"
 )
+
+func NewPrivateKey() (*ecdsa.PrivateKey, error) {
+	return newKey(crand.Reader)
+}
 
 func NewLightKey(passphrase string) (common.Address, []byte, error) {
 	pk, err := newKey(crand.Reader)
@@ -51,11 +56,11 @@ func ExportPrivateKey(keyjson []byte, auth string) (common.Address, *ecdsa.Priva
 	return nkey.Address, nkey.PrivateKey, nil
 }
 
-func PrivateKeyToString(priv_key *ecdsa.PrivateKey) string {
+func PrivateKeyToHex(priv_key *ecdsa.PrivateKey) string {
 	return hex.EncodeToString(crypto.FromECDSA(priv_key))
 }
 
-func StringToPrivateKey(str string) (*ecdsa.PrivateKey, error) {
+func PrivateKeyFromHex(str string) (*ecdsa.PrivateKey, error) {
 	data, err := hex.DecodeString(str)
 	if err != nil {
 		return nil, err
@@ -77,4 +82,12 @@ func newKeyFromECDSA(privateKeyECDSA *ecdsa.PrivateKey) *keystore.Key {
 		PrivateKey: privateKeyECDSA,
 	}
 	return key
+}
+
+func PrivateKeyToBytes(pk *ecdsa.PrivateKey) []byte {
+	return math.PaddedBigBytes(pk.D, 32)
+}
+
+func PrivateKeyFromBytes(data []byte) *ecdsa.PrivateKey {
+	return crypto.ToECDSAUnsafe(data)
 }
