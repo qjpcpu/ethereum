@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum"
@@ -24,6 +25,16 @@ func SignerFuncOf(keyJson, keyPasswd string) bind.SignerFn {
 			return nil, err
 		}
 		signTransaction, err := types.SignTx(transaction, signer, key.PrivateKey)
+		if err != nil {
+			return nil, err
+		}
+		return signTransaction, nil
+	}
+}
+
+func SignerFuncOfPK(pk *ecdsa.PrivateKey) bind.SignerFn {
+	return func(signer types.Signer, addresses common.Address, transaction *types.Transaction) (*types.Transaction, error) {
+		signTransaction, err := types.SignTx(transaction, signer, pk)
 		if err != nil {
 			return nil, err
 		}
