@@ -40,8 +40,9 @@ func (evt Event) String() string {
 }
 
 type Builder struct {
-	es      *eventScanner
-	abi_str string
+	es       *eventScanner
+	interval time.Duration
+	abi_str  string
 }
 
 func NewScanBuilder() *Builder {
@@ -85,41 +86,62 @@ func (b *Builder) SetFrom(f uint64) *Builder {
 	return b
 }
 
+func (b *Builder) SetTo(f uint64) *Builder {
+	b.es.To = f
+	return b
+}
+
 func (b *Builder) SetProgressChan(pc chan<- Progress) *Builder {
 	b.es.ProgressChan = pc
 	return b
 }
 
-func (b *Builder) BuildAndRun(dataCh chan<- Event, errChan chan<- error, intervals ...time.Duration) (*redo.Recipet, error) {
+func (b *Builder) SetDataChan(dataCh chan<- Event, errChan chan<- error) *Builder {
 	b.es.DataChan, b.es.ErrChan = dataCh, errChan
-	if b.es.DataChan == nil {
-		return nil, errors.New("data channel should not be empty")
-	}
-	if b.abi_str == "" {
-		return nil, errors.New("need ABI")
-	}
-	if b.es.conn == nil {
-		return nil, errors.New("no eth client")
-	}
-	if len(b.es.EventNames) == 0 {
-		return nil, errors.New("please specify events")
-	}
-	var err error
-	b.es.bc, err = bindContract(b.abi_str, b.es.Contract, b.es.conn)
-	if err != nil {
+	return b
+}
+
+func (b *Builder) SetInterval(interval time.Duration) *Builder {
+	b.interval = interval
+	return b
+}
+
+func (b *Builder) BuildAndRun() (*redo.Recipet, error) {
+	if err := b.Build(); err != nil {
 		return nil, err
 	}
 	var recipet *redo.Recipet
-	interval := time.Second * 3
-	if len(intervals) > 0 {
-		interval = intervals[0]
-	}
 	if b.es.GracefullExit {
-		recipet = redo.PerformSafe(b.es.scan, interval)
+		recipet = redo.PerformSafe(b.es.scan, b.interval)
 	} else {
-		recipet = redo.Perform(b.es.scan, interval)
+		recipet = redo.Perform(b.es.scan, b.interval)
 	}
 	return recipet, nil
+}
+
+func (b *Builder) Build() error {
+	if b.es.DataChan == nil {
+		return errors.New("data channel should not be empty")
+	}
+	if b.abi_str == "" {
+		return errors.New("need ABI")
+	}
+	if b.es.conn == nil {
+		return errors.New("no eth client")
+	}
+	if len(b.es.EventNames) == 0 {
+		return errors.New("please specify events")
+	}
+	if b.interval == time.Duration(0) {
+		b.interval = time.Second * 3
+	}
+
+	var err error
+	b.es.bc, err = bindContract(b.abi_str, b.es.Contract, b.es.conn)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 type eventScanner struct {
@@ -127,6 +149,7 @@ type eventScanner struct {
 	Contract      common.Address
 	EventNames    []string
 	From          uint64
+	To            uint64
 	DataChan      chan<- Event
 	ErrChan       chan<- error
 	ProgressChan  chan<- Progress
@@ -167,7 +190,16 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 	if es.From == 0 {
 		es.From = newest_bn
 	}
-	var to_bn uint64 = newest_bn
+	var to_bn uint64
+	if es.To > 0 && es.To < newest_bn {
+		to_bn = es.To
+	} else {
+		to_bn = newest_bn
+	}
+	if es.From > es.To && es.To > 0 {
+		ctx.StopRedo()
+		return
+	}
 	if to_bn <= es.From {
 		return
 	}
