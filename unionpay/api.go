@@ -9,10 +9,7 @@ import (
 	"math/big"
 )
 
-func PackPayParams(from common.Address, to common.Address, amount *big.Int, cutPercentage int, receiptId *big.Int, extra *big.Int) ([]byte, error) {
-	if extra == nil {
-		extra = big.NewInt(0)
-	}
+func PackPayParams(from common.Address, to common.Address, amount *big.Int, cutPercentage int, receiptId *big.Int) ([]byte, error) {
 	if receiptId == nil {
 		return nil, errors.New("no receipt id")
 	}
@@ -25,7 +22,6 @@ func PackPayParams(from common.Address, to common.Address, amount *big.Int, cutP
 		contracts.PackNum(amount),
 		contracts.PackNum(big.NewInt(int64(cutPercentage))),
 		contracts.PackNum(receiptId),
-		contracts.PackNum(extra),
 	)
 	return msg, nil
 }
@@ -42,16 +38,24 @@ func SignPayParams(keyjson, keypwd string, packedParams []byte) ([]byte, error) 
 	return msg, nil
 }
 
-func PackAndSignPayParams(keyjson, keypwd string, from common.Address, to common.Address, amount *big.Int, cutPercentage int, receiptId *big.Int, extra *big.Int) ([]byte, error) {
-	data, err := PackPayParams(from, to, amount, cutPercentage, receiptId, extra)
+func PackAndSignPayParams(keyjson, keypwd string, from common.Address, to common.Address, amount *big.Int, cutPercentage int, receiptId *big.Int) ([]byte, error) {
+	data, err := PackPayParams(from, to, amount, cutPercentage, receiptId)
 	if err != nil {
 		return nil, err
 	}
 	return SignPayParams(keyjson, keypwd, data)
 }
 
-func MakeUnionPayTxData(platform_keyjson, platform_keypwd string, from common.Address, to common.Address, amount *big.Int, cutPercentage int, receiptId *big.Int, extra *big.Int) ([]byte, error) {
-	sign, err := PackAndSignPayParams(platform_keyjson, platform_keypwd, from, to, amount, cutPercentage, receiptId, extra)
+func MakeUnionPayTxData(
+	platform_keyjson,
+	platform_keypwd string,
+	from common.Address,
+	to common.Address,
+	amount *big.Int,
+	cutPercentage int,
+	receiptId *big.Int,
+) ([]byte, error) {
+	sign, err := PackAndSignPayParams(platform_keyjson, platform_keypwd, from, to, amount, cutPercentage, receiptId)
 	if err != nil {
 		return nil, err
 	}
@@ -59,5 +63,5 @@ func MakeUnionPayTxData(platform_keyjson, platform_keypwd string, from common.Ad
 	if err != nil {
 		return nil, err
 	}
-	return contracts.PackArguments(_abi, "payCash", receiptId, big.NewInt(int64(cutPercentage)), to, extra, sign)
+	return contracts.PackArguments(_abi, "safePay", receiptId, big.NewInt(int64(cutPercentage)), to, sign)
 }

@@ -1,43 +1,72 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.23;
 
-import "./ownable.sol";
-
-contract UnionPay is Ownable {
+contract UnionPay {
+    event UserPay(address from,address to,uint256 amount, uint256 amountIndeed,uint256 transId);
+    event BareUserPay(address from,uint256 amount,bytes data);  
+    
+    address public owner;  
     address public platform;
-    mapping(address => mapping(uint256 => uint256)) public userReceipts;
-    event UserPay(address _from,address _to,uint256 _amount, uint256 _amountIndeed,uint256 _nonce,uint256 _state);
+    mapping(bytes32 => uint8)  userReceipts;
 
-    function payCash(uint256 _nonce,uint256 _feePercentage,address _to,uint256 _state, bytes _sig) payable public returns(bool) {
+    constructor() public {
+      owner = msg.sender;
+      platform = msg.sender;
+    }
+  
+    modifier onlyOwner() {
+      require(msg.sender == owner);
+      _;
+    }
+  
+    function transferOwnership(address newOwner) public onlyOwner {
+      if (newOwner != address(0)) {
+        owner = newOwner;
+      }
+    }
+
+    function safePay(uint256 _transId,uint256 _feePercentage,address _to, bytes _sig) payable public returns(bool) {
         require(_feePercentage>=0 && _feePercentage<=100);
         require(_to != address(0));
-        require(userReceipts[msg.sender][_nonce] == 0);
+        require(userReceipts[getReceiptId(msg.sender,_to,_transId)] == 0);
         require(platform!=address(0));
 
-        bytes32 message = prefixed(keccak256(msg.sender, _to, msg.value, _feePercentage,_nonce,_state));
+        bytes32 message = prefixed(keccak256(msg.sender, _to, msg.value, _feePercentage,_transId));
 
         require(recoverSigner(message, _sig) == platform);
-        userReceipts[msg.sender][_nonce] = 1;
+        userReceipts[getReceiptId(msg.sender,_to,_transId)] = 1;
         
         if (_feePercentage == 0){
             if (msg.value > 0){
                 _to.transfer(msg.value);
             }
-            emit UserPay(msg.sender,_to,msg.value,msg.value,_nonce,_state);
+            emit UserPay(msg.sender,_to,msg.value,msg.value,_transId);
             return true;
         }        
         uint256 val = _feePercentage * msg.value;
         assert(val/_feePercentage == msg.value);
         val = val/100;
-        if (msg.value-val>0){
+        if (msg.value>val){
             _to.transfer(msg.value - val);
         }
-        emit UserPay(msg.sender,_to,msg.value,msg.value - val,_nonce,_state);
+        emit UserPay(msg.sender,_to,msg.value,msg.value - val,_transId);
         return true;
     }
     
+    function getReceiptId(address _from,address _to, uint256 _transId) internal pure returns(bytes32){
+        return keccak256(_from, _to,_transId);
+    }
+    
+    function receiptUsed(address _from,address _to,uint256 _transId) public view returns(bool){
+        return userReceipts[getReceiptId(_from,_to,_transId)] == 1;
+    }
+    
     function plainPay() public payable returns(bool){
-        emit UserPay(msg.sender,address(this),msg.value,msg.value,0,0);
+        emit BareUserPay(msg.sender,msg.value,msg.data);
         return true;
+    }
+    
+    function () public payable{
+        emit BareUserPay(msg.sender,msg.value,msg.data);
     }
     
     function setPlatform(address _checker) public onlyOwner{
@@ -97,4 +126,3 @@ contract UnionPay is Ownable {
         return keccak256("\x19Ethereum Signed Message:\n32", hash);
     }
 }
-
