@@ -1,7 +1,7 @@
 pragma solidity ^0.4.23;
 
 contract UnionPay {
-    event UserPay(address from,address to,uint256 amount, uint256 amountIndeed,uint256 transId);
+    event UserPay(address from,address to,uint256 amount, uint256 amountIndeed,uint256 transId,uint256 extra);
     event BareUserPay(address from,uint256 amount,bytes data);  
     
     address public owner;  
@@ -24,13 +24,13 @@ contract UnionPay {
       }
     }
 
-    function safePay(uint256 _transId,uint256 _feePercentage,address _to, bytes _sig) payable public returns(bool) {
+    function safePay(address _to,uint256 _transId, uint256 _feePercentage,uint256 _extra, bytes _sig) payable public returns(bool) {
         require(_feePercentage>=0 && _feePercentage<=100);
         require(_to != address(0));
         require(userReceipts[getReceiptId(msg.sender,_to,_transId)] == 0);
         require(platform!=address(0));
 
-        bytes32 message = prefixed(keccak256(msg.sender, _to, msg.value, _feePercentage,_transId));
+        bytes32 message = prefixed(keccak256(msg.sender, _to, msg.value, _feePercentage,_transId,_extra));
 
         require(recoverSigner(message, _sig) == platform);
         userReceipts[getReceiptId(msg.sender,_to,_transId)] = 1;
@@ -39,7 +39,7 @@ contract UnionPay {
             if (msg.value > 0){
                 _to.transfer(msg.value);
             }
-            emit UserPay(msg.sender,_to,msg.value,msg.value,_transId);
+            emit UserPay(msg.sender,_to,msg.value,msg.value,_transId,_extra);
             return true;
         }        
         uint256 val = _feePercentage * msg.value;
@@ -48,7 +48,32 @@ contract UnionPay {
         if (msg.value>val){
             _to.transfer(msg.value - val);
         }
-        emit UserPay(msg.sender,_to,msg.value,msg.value - val,_transId);
+        emit UserPay(msg.sender,_to,msg.value,msg.value - val,_transId,_extra);
+        return true;
+    }
+
+    function fixedSafePay(address _to,uint256 _transId, uint256 _fixCut,uint256 _extra, bytes _sig) payable public returns(bool) {
+        require(_fixCut>=0 && _fixCut<=msg.value);
+        require(_to != address(0));
+        require(userReceipts[getReceiptId(msg.sender,_to,_transId)] == 0);
+        require(platform!=address(0));
+
+        bytes32 message = prefixed(keccak256(msg.sender, _to, msg.value, _fixCut,_transId,_extra));
+
+        require(recoverSigner(message, _sig) == platform);
+        userReceipts[getReceiptId(msg.sender,_to,_transId)] = 1;
+        
+        if (_fixCut == 0){
+            if (msg.value > 0){
+                _to.transfer(msg.value);
+            }
+            emit UserPay(msg.sender,_to,msg.value,msg.value,_transId,_extra);
+            return true;
+        }        
+        if (msg.value>_fixCut){
+            _to.transfer(msg.value - _fixCut);
+        }
+        emit UserPay(msg.sender,_to,msg.value,msg.value - _fixCut,_transId,_extra);
         return true;
     }
     
@@ -59,6 +84,7 @@ contract UnionPay {
     function receiptUsed(address _from,address _to,uint256 _transId) public view returns(bool){
         return userReceipts[getReceiptId(_from,_to,_transId)] == 1;
     }
+    
     
     function plainPay() public payable returns(bool){
         emit BareUserPay(msg.sender,msg.value,msg.data);

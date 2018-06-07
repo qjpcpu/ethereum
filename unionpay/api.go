@@ -3,25 +3,30 @@ package unionpay
 import (
 	"errors"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/qjpcpu/ethereum/contracts"
 	"github.com/qjpcpu/ethereum/key"
 	"math/big"
 )
 
-func PackPayParams(from common.Address, to common.Address, amount *big.Int, cutPercentage int, receiptId *big.Int) ([]byte, error) {
+func PackPayParams(from common.Address, to common.Address, amount *big.Int, cut *big.Int, receiptId *big.Int, extra *big.Int) ([]byte, error) {
+	if extra == nil {
+		return nil, errors.New("no extra")
+	}
 	if receiptId == nil {
 		return nil, errors.New("no receipt id")
 	}
-	if cutPercentage < 0 || cutPercentage > 100 {
-		return nil, errors.New("cutPercentage should in[0,100]")
+	if cut == nil {
+		return nil, errors.New("no cut")
 	}
 	msg := crypto.Keccak256(
 		from.Bytes(),
 		to.Bytes(),
 		contracts.PackNum(amount),
-		contracts.PackNum(big.NewInt(int64(cutPercentage))),
+		contracts.PackNum(cut),
 		contracts.PackNum(receiptId),
+		contracts.PackNum(extra),
 	)
 	return msg, nil
 }
@@ -38,24 +43,26 @@ func SignPayParams(keyjson, keypwd string, packedParams []byte) ([]byte, error) 
 	return msg, nil
 }
 
-func PackAndSignPayParams(keyjson, keypwd string, from common.Address, to common.Address, amount *big.Int, cutPercentage int, receiptId *big.Int) ([]byte, error) {
-	data, err := PackPayParams(from, to, amount, cutPercentage, receiptId)
+func PackAndSignPayParams(keyjson, keypwd string, from common.Address, to common.Address, amount *big.Int, cut *big.Int, receiptId *big.Int, extra *big.Int) ([]byte, error) {
+	data, err := PackPayParams(from, to, amount, cut, receiptId, extra)
 	if err != nil {
 		return nil, err
 	}
 	return SignPayParams(keyjson, keypwd, data)
 }
 
-func MakeUnionPayTxData(
+func makeUnionPayTxData(
 	platform_keyjson,
 	platform_keypwd string,
 	from common.Address,
 	to common.Address,
 	amount *big.Int,
-	cutPercentage int,
+	cut *big.Int,
 	receiptId *big.Int,
+	extra *big.Int,
+	method string,
 ) ([]byte, error) {
-	sign, err := PackAndSignPayParams(platform_keyjson, platform_keypwd, from, to, amount, cutPercentage, receiptId)
+	sign, err := PackAndSignPayParams(platform_keyjson, platform_keypwd, from, to, amount, cut, receiptId, extra)
 	if err != nil {
 		return nil, err
 	}
@@ -63,5 +70,40 @@ func MakeUnionPayTxData(
 	if err != nil {
 		return nil, err
 	}
-	return contracts.PackArguments(_abi, "safePay", receiptId, big.NewInt(int64(cutPercentage)), to, sign)
+	return contracts.PackArguments(_abi, method, to, receiptId, cut, extra, sign)
+}
+
+func MakeSafePayTxData(
+	platform_keyjson,
+	platform_keypwd string,
+	from common.Address,
+	to common.Address,
+	amount *big.Int,
+	cutPercent int,
+	receiptId *big.Int,
+	extra *big.Int,
+) (string, error) {
+	cut := big.NewInt(int64(cutPercent))
+	data, err := makeUnionPayTxData(platform_keyjson, platform_keypwd, from, to, amount, cut, receiptId, extra, "safePay")
+	if err != nil {
+		return "", err
+	}
+	return hexutil.Encode(data), nil
+}
+
+func MakeFixedSafePayTxData(
+	platform_keyjson,
+	platform_keypwd string,
+	from common.Address,
+	to common.Address,
+	amount *big.Int,
+	cutFixed *big.Int,
+	receiptId *big.Int,
+	extra *big.Int,
+) (string, error) {
+	data, err := makeUnionPayTxData(platform_keyjson, platform_keypwd, from, to, amount, cutFixed, receiptId, extra, "fixedSafePay")
+	if err != nil {
+		return "", err
+	}
+	return hexutil.Encode(data), nil
 }

@@ -16,19 +16,25 @@ func TestSignature(t *testing.T) {
 	from := common.HexToAddress("0xca35b7d915458ef540ade6068dfe2f44e8fa733c")
 	to := common.HexToAddress("0xdd870fa1b7c4700f2bd7f44238821c26f7392148")
 	amount := big.NewInt(1000000000000000000)
-	cut := 50
-	nonce := big.NewInt(1)
-	sign, err := PackAndSignPayParams(string(keyjson), pwd, from, to, amount, cut, nonce)
+	cut := big.NewInt(45)
+	nonce := big.NewInt(3)
+	extra := big.NewInt(1)
+	sign, err := PackAndSignPayParams(string(keyjson), pwd, from, to, amount, cut, nonce, extra)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log("platform:", platform.Hex())
 	t.Log("from:", from.Hex())
 	t.Log("value:", amount.Uint64())
-	t.Logf("safePay(%v,%v,\"%v\",\"%v\")", nonce.Uint64(), cut, to.Hex(), hexutil.Encode(sign))
-	data, err := MakeUnionPayTxData(string(keyjson), pwd, from, to, amount, cut, nonce)
+	t.Logf("safePay(\"%v\",%v,%v,%v,\"%v\")", to.Hex(), nonce.Uint64(), cut, extra.Uint64(), hexutil.Encode(sign))
+	data, err := MakeSafePayTxData(string(keyjson), pwd, from, to, amount, int(cut.Int64()), nonce, extra)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log("raw tx data:", hexutil.Encode(data))
+	t.Log("raw tx data:", data)
+	data, err = MakeFixedSafePayTxData(string(keyjson), pwd, from, to, amount, cut, nonce, extra)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("raw tx data:", data)
 }
