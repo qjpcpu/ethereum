@@ -61,8 +61,8 @@ func (b *Builder) SetEvents(names ...string) *Builder {
 	return b
 }
 
-func (b *Builder) SetContract(addr common.Address) *Builder {
-	b.es.Contract = addr
+func (b *Builder) SetContract(addrs ...common.Address) *Builder {
+	b.es.Contracts = addrs
 	return b
 }
 
@@ -129,6 +129,9 @@ func (b *Builder) Build() error {
 	if b.es.conn == nil {
 		return errors.New("no eth client")
 	}
+	if len(b.es.Contracts) == 0 {
+		return errors.New("no contract address")
+	}
 	if len(b.es.EventNames) == 0 {
 		return errors.New("please specify events")
 	}
@@ -137,7 +140,7 @@ func (b *Builder) Build() error {
 	}
 
 	var err error
-	b.es.bc, err = bindContract(b.abi_str, b.es.Contract, b.es.conn)
+	b.es.bc, err = bindContract(b.abi_str, b.es.Contracts[0], b.es.conn)
 	if err != nil {
 		return err
 	}
@@ -146,7 +149,7 @@ func (b *Builder) Build() error {
 
 type eventScanner struct {
 	conn          *ethclient.Client
-	Contract      common.Address
+	Contracts     []common.Address
 	EventNames    []string
 	From          uint64
 	To            uint64
@@ -217,9 +220,7 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 		Addresses: []common.Address{},
 		Topics:    [][]common.Hash{topics},
 	}
-	if es.Contract != (common.Address{}) {
-		fq.Addresses = append(fq.Addresses, es.Contract)
-	}
+	fq.Addresses = es.Contracts
 	logs, err := es.conn.FilterLogs(context.Background(), fq)
 	if err != nil {
 		es.sendErr(fmt.Errorf("filter log(%v,%v) err:%v, will retry later", es.From, to_bn, err))
