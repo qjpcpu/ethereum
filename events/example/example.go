@@ -17,11 +17,9 @@ func main() {
 	dataCh, errCh := make(chan events.Event, 1000), make(chan error, 1)
 	b := events.NewScanBuilder()
 	rep, err := b.SetClient(conn).
-		SetEvents("Pregnant").
-		SetContract(common.HexToAddress(`0x06012c8cf97BEaD5deAe237070F9587f8E7A266d`)).
-		SetABI(abi_text).
+		SetContract(common.HexToAddress(`0x06012c8cf97BEaD5deAe237070F9587f8E7A266d`), abi_text, "Pregnant").
 		SetFrom(5547829).
-		SetTo(5547830).
+		SetTo(5547930).
 		SetGracefullExit(true).
 		SetDataChan(dataCh, errCh).
 		BuildAndRun()

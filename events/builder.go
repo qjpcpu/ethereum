@@ -42,12 +42,11 @@ func (evt Event) String() string {
 type Builder struct {
 	es       *eventScanner
 	interval time.Duration
-	abi_str  string
 }
 
 func NewScanBuilder() *Builder {
 	return &Builder{
-		es: &eventScanner{},
+		es: &eventScanner{Contracts: make(contractMap)},
 	}
 }
 
@@ -56,23 +55,17 @@ func (b *Builder) SetClient(conn *ethclient.Client) *Builder {
 	return b
 }
 
-func (b *Builder) SetEvents(names ...string) *Builder {
-	b.es.EventNames = names
-	return b
-}
-
-func (b *Builder) SetContract(addrs ...common.Address) *Builder {
-	b.es.Contracts = addrs
+func (b *Builder) SetContract(addr common.Address, abi_str string, evt_name string, evt_names ...string) *Builder {
+	b.es.Contracts[strings.ToLower(addr.Hex())] = contractMeta{
+		contract:  addr,
+		abi_str:   abi_str,
+		evt_names: append([]string{evt_name}, evt_names...),
+	}
 	return b
 }
 
 func (b *Builder) SetGracefullExit(yes bool) *Builder {
 	b.es.GracefullExit = yes
-	return b
-}
-
-func (b *Builder) SetABI(abi_str string) *Builder {
-	b.abi_str = abi_str
 	return b
 }
 
@@ -123,34 +116,63 @@ func (b *Builder) Build() error {
 	if b.es.DataChan == nil {
 		return errors.New("data channel should not be empty")
 	}
-	if b.abi_str == "" {
-		return errors.New("need ABI")
-	}
 	if b.es.conn == nil {
 		return errors.New("no eth client")
 	}
 	if len(b.es.Contracts) == 0 {
 		return errors.New("no contract address")
 	}
-	if len(b.es.EventNames) == 0 {
-		return errors.New("please specify events")
-	}
 	if b.interval == time.Duration(0) {
 		b.interval = time.Second * 3
 	}
 
-	var err error
-	b.es.bc, err = bindContract(b.abi_str, b.es.Contracts[0], b.es.conn)
-	if err != nil {
-		return err
+	for key, cm := range b.es.Contracts {
+		if len(cm.evt_names) == 0 {
+			return errors.New("no event names")
+		}
+		if cm.abi_str == "" {
+			return errors.New("need ABI")
+		}
+		bc, err := bindContract(cm.abi_str, cm.contract, b.es.conn)
+		if err != nil {
+			return err
+		}
+		cm.bc = bc
+		b.es.Contracts[key] = cm
 	}
 	return nil
 }
 
+type contractMeta struct {
+	contract  common.Address
+	abi_str   string
+	evt_names []string
+	bc        *bind.BoundContract
+}
+
+type contractMap map[string]contractMeta
+
+func (cm contractMap) Contracts() []common.Address {
+	var arr []common.Address
+	for _, e := range cm {
+		arr = append(arr, e.contract)
+	}
+	return arr
+}
+
+func (cm contractMap) Topics() []common.Hash {
+	var arr []common.Hash
+	for _, e := range cm {
+		for _, evt := range e.evt_names {
+			arr = append(arr, e.bc.EventTopic(evt))
+		}
+	}
+	return arr
+}
+
 type eventScanner struct {
 	conn          *ethclient.Client
-	Contracts     []common.Address
-	EventNames    []string
+	Contracts     contractMap
 	From          uint64
 	To            uint64
 	DataChan      chan<- Event
@@ -158,7 +180,6 @@ type eventScanner struct {
 	ProgressChan  chan<- Progress
 	GracefullExit bool
 	marginBlock   uint64
-	bc            *bind.BoundContract
 }
 
 func (es *eventScanner) NewestBlockNumber() (uint64, error) {
@@ -209,10 +230,7 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 	if es.From+1000 < to_bn {
 		to_bn -= 1000
 	}
-	var topics []common.Hash = make([]common.Hash, len(es.EventNames))
-	for i, t := range es.EventNames {
-		topics[i] = es.bc.EventTopic(t)
-	}
+	var topics []common.Hash = es.Contracts.Topics()
 
 	fq := ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(es.From),
@@ -220,7 +238,7 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 		Addresses: []common.Address{},
 		Topics:    [][]common.Hash{topics},
 	}
-	fq.Addresses = es.Contracts
+	fq.Addresses = es.Contracts.Contracts()
 	logs, err := es.conn.FilterLogs(context.Background(), fq)
 	if err != nil {
 		es.sendErr(fmt.Errorf("filter log(%v,%v) err:%v, will retry later", es.From, to_bn, err))
@@ -228,7 +246,11 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 	}
 	for _, lg := range logs {
 		evt := abi.NewJSONObj()
-		name, err := es.bc.UnpackMatchedLog(evt, lg)
+		cm, ok := es.Contracts[strings.ToLower(lg.Address.Hex())]
+		if !ok {
+			continue
+		}
+		name, err := cm.bc.UnpackMatchedLog(evt, lg)
 		if err != nil {
 			es.sendErr(fmt.Errorf("unpack %s log in tx(%s) fail:%v,abadon", name, lg.TxHash.Hex(), err))
 			continue
