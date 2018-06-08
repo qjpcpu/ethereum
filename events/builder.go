@@ -192,11 +192,11 @@ type eventScanner struct {
 }
 
 func (es *eventScanner) NewestBlockNumber() (uint64, error) {
-	block, err := es.conn.BlockByNumber(context.Background(), nil)
+	block, err := es.conn.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		return 0, err
 	}
-	return block.NumberU64() - es.marginBlock, nil
+	return block.Number.Uint64() - es.marginBlock, nil
 }
 
 func (es *eventScanner) sendErr(err error) {
