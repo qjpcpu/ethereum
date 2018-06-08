@@ -150,6 +150,15 @@ type contractMeta struct {
 	bc        *bind.BoundContract
 }
 
+func (cm contractMeta) HasEvent(name string) bool {
+	for _, evt := range cm.evt_names {
+		if evt == name {
+			return true
+		}
+	}
+	return false
+}
+
 type contractMap map[string]contractMeta
 
 func (cm contractMap) Contracts() []common.Address {
@@ -253,6 +262,9 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 		name, err := cm.bc.UnpackMatchedLog(evt, lg)
 		if err != nil {
 			es.sendErr(fmt.Errorf("unpack %s log in tx(%s) fail:%v,abadon", name, lg.TxHash.Hex(), err))
+			continue
+		}
+		if !cm.HasEvent(name) {
 			continue
 		}
 		es.sendData(Event{
