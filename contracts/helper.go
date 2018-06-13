@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -136,6 +137,23 @@ func BuildTransactOpts(keyJson, keyPasswd string) *bind.TransactOpts {
 	return opts
 }
 
+func BuildTransactOptsFromPK(pk *ecdsa.PrivateKey) *bind.TransactOpts {
+	opts := &bind.TransactOpts{
+		From:  crypto.PubkeyToAddress(pk.PublicKey),
+		Nonce: nil,
+		Signer: func(signer types.Signer, addresses common.Address, transaction *types.Transaction) (*types.Transaction, error) {
+			signTransaction, err := types.SignTx(transaction, signer, pk)
+			if err != nil {
+				return nil, err
+			}
+			return signTransaction, nil
+		},
+		Value:   big.NewInt(0),
+		Context: context.Background(),
+	}
+	return opts
+}
+
 func DecodeKeystoreAddress(keyJsonStr []byte) common.Address {
 	addr := struct {
 		Address string `json:"address"`
@@ -151,6 +169,10 @@ func DecodeKeystoreAddress(keyJsonStr []byte) common.Address {
 
 func NewTxOptsBuilder(keyJson, keyPwd string) *TxOptsBuilder {
 	return &TxOptsBuilder{opts: BuildTransactOpts(keyJson, keyPwd)}
+}
+
+func NewTxOptsBuilderFromPK(pk *ecdsa.PrivateKey) *TxOptsBuilder {
+	return &TxOptsBuilder{opts: BuildTransactOptsFromPK(pk)}
 }
 
 func (b *TxOptsBuilder) Get() *bind.TransactOpts {
