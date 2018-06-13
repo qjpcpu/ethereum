@@ -55,6 +55,7 @@ func (b *Builder) SetClient(conn *ethclient.Client) *Builder {
 	return b
 }
 
+// set addr to address(0) e.g.common.Address{} to filter any contracts with same abi
 func (b *Builder) SetContract(addr common.Address, abi_str string, evt_name string, evt_names ...string) *Builder {
 	b.es.Contracts[strings.ToLower(addr.Hex())] = contractMeta{
 		contract:  addr,
@@ -122,6 +123,11 @@ func (b *Builder) Build() error {
 	if len(b.es.Contracts) == 0 {
 		return errors.New("no contract address")
 	}
+	for _, ct := range b.es.Contracts {
+		if ct.contract == (common.Address{}) && len(b.es.Contracts) != 1 {
+			return errors.New("should only one zero contract")
+		}
+	}
 	if b.interval == time.Duration(0) {
 		b.interval = time.Second * 3
 	}
@@ -164,7 +170,9 @@ type contractMap map[string]contractMeta
 func (cm contractMap) Contracts() []common.Address {
 	var arr []common.Address
 	for _, e := range cm {
-		arr = append(arr, e.contract)
+		if e.contract != (common.Address{}) {
+			arr = append(arr, e.contract)
+		}
 	}
 	return arr
 }
@@ -177,6 +185,16 @@ func (cm contractMap) Topics() []common.Hash {
 		}
 	}
 	return arr
+}
+
+func (cm contractMap) GetMeta(addr common.Address) (contractMeta, bool) {
+	meta, ok := cm[strings.ToLower(addr.Hex())]
+	if !ok {
+		if metaAny, okAny := cm[strings.ToLower((common.Address{}).Hex())]; okAny {
+			return metaAny, okAny
+		}
+	}
+	return meta, ok
 }
 
 type eventScanner struct {
@@ -255,7 +273,7 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 	}
 	for _, lg := range logs {
 		evt := abi.NewJSONObj()
-		cm, ok := es.Contracts[strings.ToLower(lg.Address.Hex())]
+		cm, ok := es.Contracts.GetMeta(lg.Address)
 		if !ok {
 			continue
 		}
