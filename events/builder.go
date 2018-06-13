@@ -80,6 +80,11 @@ func (b *Builder) SetFrom(f uint64) *Builder {
 	return b
 }
 
+func (b *Builder) SetStep(f uint64) *Builder {
+	b.es.StepLength = f
+	return b
+}
+
 func (b *Builder) SetTo(f uint64) *Builder {
 	b.es.To = f
 	return b
@@ -130,6 +135,9 @@ func (b *Builder) Build() error {
 	}
 	if b.interval == time.Duration(0) {
 		b.interval = time.Second * 3
+	}
+	if b.es.StepLength == 0 {
+		b.es.StepLength = 1000
 	}
 
 	for key, cm := range b.es.Contracts {
@@ -201,6 +209,7 @@ type eventScanner struct {
 	conn          *ethclient.Client
 	Contracts     contractMap
 	From          uint64
+	StepLength    uint64
 	To            uint64
 	DataChan      chan<- Event
 	ErrChan       chan<- error
@@ -254,8 +263,8 @@ func (es *eventScanner) scan(ctx *redo.RedoCtx) {
 	if to_bn <= es.From {
 		return
 	}
-	if es.From+1000 < to_bn {
-		to_bn -= 1000
+	if es.From+es.StepLength < to_bn {
+		to_bn = es.From + es.StepLength
 	}
 	var topics []common.Hash = es.Contracts.Topics()
 
