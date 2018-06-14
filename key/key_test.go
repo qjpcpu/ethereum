@@ -25,6 +25,10 @@ func TestSignature(t *testing.T) {
 }
 
 func TestVerifySign(t *testing.T) {
+	/* sign in web3js
+	web3.eth.personal.sign("Hello world", "0xE35f3e2A93322b61e5D8931f806Ff38F4a4F4D88", "").then(console.log);
+	   // output 0xbd5280c97dd1f069875a512364ca8470c0d928c4701b2a7a89c775478caf7ac670a908823fc75e65e400592d57e9649b2f1f57b4fd3980f02fe9a683e271a41c1b
+	*/
 	from := "0xE35f3e2A93322b61e5D8931f806Ff38F4a4F4D88"
 	signHex := "0xbd5280c97dd1f069875a512364ca8470c0d928c4701b2a7a89c775478caf7ac670a908823fc75e65e400592d57e9649b2f1f57b4fd3980f02fe9a683e271a41c1b"
 	msg := []byte("Hello world")
