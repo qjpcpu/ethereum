@@ -14,6 +14,11 @@ func WeiToEth(num *big.Int) *big.Float {
 	return new(big.Float).Quo(new(big.Float).SetInt(num), one_eth)
 }
 
+func WeiToEthfloat(num *big.Int) float64 {
+	f, _ := WeiToEth(num).Float64()
+	return f
+}
+
 func EthToWei(float_eth *big.Float) *big.Int {
 	one_eth := big.NewFloat(float64(Unit_1eth))
 	res := new(big.Int)
