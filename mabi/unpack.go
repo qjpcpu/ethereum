@@ -165,9 +165,9 @@ func toGoType(index int, t Type, output []byte) (interface{}, error) {
 	case BoolTy:
 		return readBool(returnOutput)
 	case AddressTy:
-		return common.BytesToAddress(returnOutput).Hex(), nil
+		return common.BytesToAddress(returnOutput), nil
 	case HashTy:
-		return common.BytesToHash(returnOutput).Hex(), nil
+		return common.BytesToHash(returnOutput), nil
 	case BytesTy:
 		return output[begin : begin+end], nil
 	case FixedBytesTy:
