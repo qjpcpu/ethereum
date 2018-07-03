@@ -56,11 +56,11 @@ func (b *Builder) SetClient(conn *ethclient.Client) *Builder {
 }
 
 // set addr to address(0) e.g.common.Address{} to filter any contracts with same abi
-func (b *Builder) SetContract(addr common.Address, abi_str string, evt_name string, evt_names ...string) *Builder {
+func (b *Builder) SetContract(addr common.Address, abi_str string, evt_names ...string) *Builder {
 	b.es.Contracts[strings.ToLower(addr.Hex())] = contractMeta{
 		contract:  addr,
 		abi_str:   abi_str,
-		evt_names: append([]string{evt_name}, evt_names...),
+		evt_names: evt_names,
 	}
 	return b
 }
