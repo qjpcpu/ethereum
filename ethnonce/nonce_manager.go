@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/qjpcpu/log"
+	"math/big"
 	"strings"
 	"time"
 )
@@ -81,5 +82,55 @@ func (n *NonceManager) GiveNonceForTx(addr common.Address, txJob func(nonce uint
 	} else {
 		n.Impl.CommitNonce(addr, nonce, true)
 		return tx, nil
+	}
+}
+
+type TxRunner interface {
+	Nonce() *big.Int
+	Commit(*types.Transaction, error)
+}
+
+type txRunnerImpl struct {
+	nonce uint64
+	tx    *types.Transaction
+	err   error
+}
+
+func newTxRunner(nonce uint64) *txRunnerImpl {
+	return &txRunnerImpl{
+		nonce: nonce,
+	}
+}
+
+func (tr *txRunnerImpl) Nonce() *big.Int {
+	return new(big.Int).SetUint64(tr.nonce)
+}
+
+func (tr *txRunnerImpl) Commit(tx *types.Transaction, err error) {
+	tr.tx = tx
+	tr.err = err
+}
+
+func (n *NonceManager) GiveNonceForTxV2(addr common.Address, txJob func(TxRunner)) (*types.Transaction, error) {
+	nonce, err := n.MustGiveNonce(addr)
+	if err != nil {
+		return nil, err
+	}
+	tr := newTxRunner(nonce)
+	txJob(tr)
+	if tr.tx == nil && tr.err == nil {
+		n.Impl.CommitNonce(addr, nonce, false)
+		return nil, errors.New("must commit")
+	}
+	if err := tr.err; err != nil {
+		n.Impl.CommitNonce(addr, nonce, false)
+		if strings.Contains(err.Error(), "nonce too low") || strings.Contains(err.Error(), "nonce too high") {
+			new_nonce, _ := n.Impl.SyncNonce(addr)
+			log.Debugf("nonce:%d of %s is [%v], auto sync to %d", nonce, addr.Hex(), err, new_nonce)
+		}
+		return nil, err
+	} else {
+		n.Impl.CommitNonce(addr, nonce, true)
+		return tr.tx, nil
 	}
 }
